@@ -44,17 +44,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bluesky"
-version = "1.0.0"
-dependencies = [
- "anyhow",
- "ff",
- "primitive-types",
- "rand_core",
- "subtle",
-]
-
-[[package]]
 name = "byte-slice-cast"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -410,6 +399,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "starkom-bluesky"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "ff",
+ "primitive-types",
+ "rand_core",
+ "subtle",
 ]
 
 [[package]]
