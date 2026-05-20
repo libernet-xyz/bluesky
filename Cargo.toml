@@ -1,0 +1,14 @@
+[package]
+name = "bluesky"
+version = "1.0.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+anyhow = "1.0.102"
+ff = { version = "0.13.1", features = ["derive"] }
+primitive-types = "0.14.0"
+rand_core = "^0.6"
+subtle = "2.6.1"
