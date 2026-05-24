@@ -779,10 +779,10 @@ impl ThreeAdicField for Scalar {
     const T: u32 = 39;
 
     const THREE_INV: Self = Self(
-        0x3fffffffffffffffu64,
-        0xf98c220d6164aab8u64,
-        0x0000000000000001u64,
-        0x0000000000000000u64,
+        0x1555555555555555u64,
+        0x532eb60475cc38e8u64,
+        0xaaaaaaaaaaaaaaabu64,
+        0x2aaaaaaaaaaaaaaau64,
     );
 
     const THREE_ADIC_ROOT_OF_UNITY: Self = Self(
@@ -885,22 +885,26 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0,
             ])
         );
-        assert_eq!(Scalar::MAX_MINUS_ONE, -Scalar::from(2));
+        assert_eq!(Scalar::MAX_MINUS_ONE, -Scalar::from_const(2));
         assert_eq!(Scalar::NUM_BITS, 255);
         assert_eq!(Scalar::CAPACITY, 254);
-        assert_eq!(Scalar::TWO_INV, Scalar::from(2).invert().unwrap());
+        assert_eq!(Scalar::TWO_INV, Scalar::from_const(2).invert().unwrap());
+        assert_eq!(Scalar::THREE_INV, Scalar::from_const(3).invert().unwrap());
         assert_eq!(Scalar::MULTIPLICATIVE_GENERATOR, 5.into());
         assert!(Scalar::ROOT_OF_UNITY > Scalar::ONE);
         for i in 0..Scalar::S {
             assert_ne!(
-                Scalar::ROOT_OF_UNITY
-                    .pow_vartime(Scalar::from(2).pow_vartime([i as u64, 0, 0, 0]).to_le_u64()),
+                Scalar::ROOT_OF_UNITY.pow_vartime(
+                    Scalar::from_const(2)
+                        .pow_vartime([i as u64, 0, 0, 0])
+                        .to_le_u64()
+                ),
                 Scalar::ONE
             );
         }
         assert_eq!(
             Scalar::ROOT_OF_UNITY.pow_vartime(
-                Scalar::from(2)
+                Scalar::from_const(2)
                     .pow_vartime([Scalar::S as u64, 0, 0, 0])
                     .to_le_u64()
             ),
@@ -913,14 +917,17 @@ mod tests {
         assert!(Scalar::THREE_ADIC_ROOT_OF_UNITY > Scalar::ONE);
         for i in 0..Scalar::T {
             assert_ne!(
-                Scalar::THREE_ADIC_ROOT_OF_UNITY
-                    .pow_vartime(Scalar::from(3).pow_vartime([i as u64, 0, 0, 0]).to_le_u64()),
+                Scalar::THREE_ADIC_ROOT_OF_UNITY.pow_vartime(
+                    Scalar::from_const(3)
+                        .pow_vartime([i as u64, 0, 0, 0])
+                        .to_le_u64()
+                ),
                 Scalar::ONE
             );
         }
         assert_eq!(
             Scalar::THREE_ADIC_ROOT_OF_UNITY.pow_vartime(
-                Scalar::from(3)
+                Scalar::from_const(3)
                     .pow_vartime([Scalar::T as u64, 0, 0, 0])
                     .to_le_u64()
             ),
@@ -1215,6 +1222,38 @@ mod tests {
         );
         assert_eq!(
             Scalar::from(u64::MAX),
+            parse_scalar("0x000000000000000000000000000000000000000000000000ffffffffffffffff")
+        );
+    }
+
+    #[test]
+    fn test_from_const() {
+        assert_eq!(
+            Scalar::from_const(0),
+            parse_scalar("0x0000000000000000000000000000000000000000000000000000000000000000")
+        );
+        assert_eq!(
+            Scalar::from_const(1),
+            parse_scalar("0x0000000000000000000000000000000000000000000000000000000000000001")
+        );
+        assert_eq!(
+            Scalar::from_const(2),
+            parse_scalar("0x0000000000000000000000000000000000000000000000000000000000000002")
+        );
+        assert_eq!(
+            Scalar::from_const(42),
+            parse_scalar("0x000000000000000000000000000000000000000000000000000000000000002a")
+        );
+        assert_eq!(
+            Scalar::from_const(u64::MAX - 2),
+            parse_scalar("0x000000000000000000000000000000000000000000000000fffffffffffffffd")
+        );
+        assert_eq!(
+            Scalar::from_const(u64::MAX - 1),
+            parse_scalar("0x000000000000000000000000000000000000000000000000fffffffffffffffe")
+        );
+        assert_eq!(
+            Scalar::from_const(u64::MAX),
             parse_scalar("0x000000000000000000000000000000000000000000000000ffffffffffffffff")
         );
     }
@@ -1549,9 +1588,9 @@ mod tests {
 
     #[test]
     fn test_cmp() {
-        let v0 = Scalar::from(0);
-        let v1 = Scalar::from(1);
-        let v2 = Scalar::from(42);
+        let v0 = Scalar::from_const(0);
+        let v1 = Scalar::from_const(1);
+        let v2 = Scalar::from_const(42);
         let v3 = parse_scalar("0x318c1df8459d125dc54e1fe487bf23e8430221b69660d8ca9427235713f24de1");
         let v4 = Scalar::MAX_MINUS_ONE;
         let v5 = Scalar::MAX;
@@ -1775,7 +1814,7 @@ mod tests {
     fn test_neg() {
         assert_eq!(-Scalar::ZERO, Scalar::ZERO);
         assert_eq!(-Scalar::ONE, Scalar::MAX);
-        assert_eq!(-Scalar::from(2), Scalar::MAX_MINUS_ONE);
+        assert_eq!(-Scalar::from_const(2), Scalar::MAX_MINUS_ONE);
         test_neg_impl(parse_scalar(
             "0x03674752fdab8efaa80c59f2a14e26dc01c3f8a2660c81cd6862b72bc606760b",
         ));
@@ -1789,38 +1828,74 @@ mod tests {
 
     #[test]
     fn test_mul_by_zero() {
-        assert_eq!(Scalar::ZERO * Scalar::from(42), Scalar::ZERO);
-        assert_eq!(Scalar::ZERO * &Scalar::from(42), Scalar::ZERO);
-        assert_eq!(Scalar::ZERO * Scalar::from(43), Scalar::ZERO);
-        assert_eq!(Scalar::ZERO * &Scalar::from(43), Scalar::ZERO);
-        assert_eq!(Scalar::from(42) * Scalar::ZERO, Scalar::ZERO);
-        assert_eq!(Scalar::from(42) * &Scalar::ZERO, Scalar::ZERO);
-        assert_eq!(Scalar::from(43) * Scalar::ZERO, Scalar::ZERO);
-        assert_eq!(Scalar::from(43) * &Scalar::ZERO, Scalar::ZERO);
+        assert_eq!(Scalar::ZERO * Scalar::from_const(42), Scalar::ZERO);
+        assert_eq!(Scalar::ZERO * &Scalar::from_const(42), Scalar::ZERO);
+        assert_eq!(Scalar::ZERO * Scalar::from_const(43), Scalar::ZERO);
+        assert_eq!(Scalar::ZERO * &Scalar::from_const(43), Scalar::ZERO);
+        assert_eq!(Scalar::from_const(42) * Scalar::ZERO, Scalar::ZERO);
+        assert_eq!(Scalar::from_const(42) * &Scalar::ZERO, Scalar::ZERO);
+        assert_eq!(Scalar::from_const(43) * Scalar::ZERO, Scalar::ZERO);
+        assert_eq!(Scalar::from_const(43) * &Scalar::ZERO, Scalar::ZERO);
     }
 
     #[test]
     fn test_mul_by_one() {
-        assert_eq!(Scalar::ONE * Scalar::from(42), Scalar::from(42));
-        assert_eq!(Scalar::ONE * &Scalar::from(42), Scalar::from(42));
-        assert_eq!(Scalar::ONE * Scalar::from(43), Scalar::from(43));
-        assert_eq!(Scalar::ONE * &Scalar::from(43), Scalar::from(43));
-        assert_eq!(Scalar::from(42) * Scalar::ONE, Scalar::from(42));
-        assert_eq!(Scalar::from(42) * &Scalar::ONE, Scalar::from(42));
-        assert_eq!(Scalar::from(43) * Scalar::ONE, Scalar::from(43));
-        assert_eq!(Scalar::from(43) * &Scalar::ONE, Scalar::from(43));
+        assert_eq!(Scalar::ONE * Scalar::from_const(42), Scalar::from_const(42));
+        assert_eq!(
+            Scalar::ONE * &Scalar::from_const(42),
+            Scalar::from_const(42)
+        );
+        assert_eq!(Scalar::ONE * Scalar::from_const(43), Scalar::from_const(43));
+        assert_eq!(
+            Scalar::ONE * &Scalar::from_const(43),
+            Scalar::from_const(43)
+        );
+        assert_eq!(Scalar::from_const(42) * Scalar::ONE, Scalar::from_const(42));
+        assert_eq!(
+            Scalar::from_const(42) * &Scalar::ONE,
+            Scalar::from_const(42)
+        );
+        assert_eq!(Scalar::from_const(43) * Scalar::ONE, Scalar::from_const(43));
+        assert_eq!(
+            Scalar::from_const(43) * &Scalar::ONE,
+            Scalar::from_const(43)
+        );
     }
 
     #[test]
     fn test_mul() {
-        assert_eq!(Scalar::from(12) * Scalar::from(34), Scalar::from(408));
-        assert_eq!(Scalar::from(12) * &Scalar::from(34), Scalar::from(408));
-        assert_eq!(Scalar::from(12) * Scalar::from(56), Scalar::from(672));
-        assert_eq!(Scalar::from(12) * &Scalar::from(56), Scalar::from(672));
-        assert_eq!(Scalar::from(34) * Scalar::from(12), Scalar::from(408));
-        assert_eq!(Scalar::from(34) * &Scalar::from(12), Scalar::from(408));
-        assert_eq!(Scalar::from(56) * Scalar::from(12), Scalar::from(672));
-        assert_eq!(Scalar::from(56) * &Scalar::from(12), Scalar::from(672));
+        assert_eq!(
+            Scalar::from_const(12) * Scalar::from_const(34),
+            Scalar::from_const(408)
+        );
+        assert_eq!(
+            Scalar::from_const(12) * &Scalar::from_const(34),
+            Scalar::from_const(408)
+        );
+        assert_eq!(
+            Scalar::from_const(12) * Scalar::from_const(56),
+            Scalar::from_const(672)
+        );
+        assert_eq!(
+            Scalar::from_const(12) * &Scalar::from_const(56),
+            Scalar::from_const(672)
+        );
+        assert_eq!(
+            Scalar::from_const(34) * Scalar::from_const(12),
+            Scalar::from_const(408)
+        );
+        assert_eq!(
+            Scalar::from_const(34) * &Scalar::from_const(12),
+            Scalar::from_const(408)
+        );
+        assert_eq!(
+            Scalar::from_const(56) * Scalar::from_const(12),
+            Scalar::from_const(672)
+        );
+        assert_eq!(
+            Scalar::from_const(56) * &Scalar::from_const(12),
+            Scalar::from_const(672)
+        );
     }
 
     fn test_mul_large_impl(v1: Scalar, v2: Scalar, v3: Scalar) {
@@ -1846,14 +1921,14 @@ mod tests {
 
     #[test]
     fn test_sum_owned() {
-        let values = vec![Scalar::ONE, Scalar::from(2), Scalar::from(3)];
-        assert_eq!(values.into_iter().sum::<Scalar>(), Scalar::from(6));
+        let values = vec![Scalar::ONE, Scalar::from_const(2), Scalar::from_const(3)];
+        assert_eq!(values.into_iter().sum::<Scalar>(), Scalar::from_const(6));
     }
 
     #[test]
     fn test_sum_refs() {
-        let values = vec![Scalar::ONE, Scalar::from(2), Scalar::from(3)];
-        assert_eq!(values.iter().sum::<Scalar>(), Scalar::from(6));
+        let values = vec![Scalar::ONE, Scalar::from_const(2), Scalar::from_const(3)];
+        assert_eq!(values.iter().sum::<Scalar>(), Scalar::from_const(6));
     }
 
     #[test]
@@ -1870,8 +1945,8 @@ mod tests {
 
     #[test]
     fn test_sum_single() {
-        let values = vec![Scalar::from(42)];
-        assert_eq!(values.into_iter().sum::<Scalar>(), Scalar::from(42));
+        let values = vec![Scalar::from_const(42)];
+        assert_eq!(values.into_iter().sum::<Scalar>(), Scalar::from_const(42));
     }
 
     #[test]
@@ -1882,14 +1957,25 @@ mod tests {
 
     #[test]
     fn test_product_owned() {
-        let values = vec![Scalar::from(2), Scalar::from(3), Scalar::from(4)];
-        assert_eq!(values.into_iter().product::<Scalar>(), Scalar::from(24));
+        let values = vec![
+            Scalar::from_const(2),
+            Scalar::from_const(3),
+            Scalar::from_const(4),
+        ];
+        assert_eq!(
+            values.into_iter().product::<Scalar>(),
+            Scalar::from_const(24)
+        );
     }
 
     #[test]
     fn test_product_refs() {
-        let values = vec![Scalar::from(2), Scalar::from(3), Scalar::from(4)];
-        assert_eq!(values.iter().product::<Scalar>(), Scalar::from(24));
+        let values = vec![
+            Scalar::from_const(2),
+            Scalar::from_const(3),
+            Scalar::from_const(4),
+        ];
+        assert_eq!(values.iter().product::<Scalar>(), Scalar::from_const(24));
     }
 
     #[test]
@@ -1906,27 +1992,33 @@ mod tests {
 
     #[test]
     fn test_product_single() {
-        let values = vec![Scalar::from(42)];
-        assert_eq!(values.into_iter().product::<Scalar>(), Scalar::from(42));
+        let values = vec![Scalar::from_const(42)];
+        assert_eq!(
+            values.into_iter().product::<Scalar>(),
+            Scalar::from_const(42)
+        );
     }
 
     #[test]
     fn test_product_with_zero() {
-        let values = vec![Scalar::from(5), Scalar::ZERO, Scalar::from(7)];
+        let values = vec![Scalar::from_const(5), Scalar::ZERO, Scalar::from_const(7)];
         assert_eq!(values.into_iter().product::<Scalar>(), Scalar::ZERO);
     }
 
     #[test]
     fn test_product_with_one() {
-        let values = vec![Scalar::ONE, Scalar::from(5), Scalar::ONE];
-        assert_eq!(values.into_iter().product::<Scalar>(), Scalar::from(5));
+        let values = vec![Scalar::ONE, Scalar::from_const(5), Scalar::ONE];
+        assert_eq!(
+            values.into_iter().product::<Scalar>(),
+            Scalar::from_const(5)
+        );
     }
 
     #[test]
     fn test_ct_eq() {
-        let a = Scalar::from(42);
-        let b = Scalar::from(42);
-        let c = Scalar::from(43);
+        let a = Scalar::from_const(42);
+        let b = Scalar::from_const(42);
+        let c = Scalar::from_const(43);
 
         assert_eq!(bool::from(a.ct_eq(&b)), true);
         assert_eq!(bool::from(a.ct_eq(&a)), true);
@@ -1947,9 +2039,9 @@ mod tests {
 
     #[test]
     fn test_ct_gt() {
-        let v0 = Scalar::from(0);
-        let v1 = Scalar::from(1);
-        let v2 = Scalar::from(42);
+        let v0 = Scalar::from_const(0);
+        let v1 = Scalar::from_const(1);
+        let v2 = Scalar::from_const(42);
         let v3 = Scalar::MAX_MINUS_ONE;
         let v4 = Scalar::MAX;
         assert_eq!(bool::from(v0.ct_gt(&v0)), false);
@@ -1968,9 +2060,9 @@ mod tests {
 
     #[test]
     fn test_ct_lt() {
-        let v0 = Scalar::from(0);
-        let v1 = Scalar::from(1);
-        let v2 = Scalar::from(42);
+        let v0 = Scalar::from_const(0);
+        let v1 = Scalar::from_const(1);
+        let v2 = Scalar::from_const(42);
         let v3 = Scalar::MAX_MINUS_ONE;
         let v4 = Scalar::MAX;
         assert_eq!(bool::from(v0.ct_lt(&v0)), false);
@@ -1988,8 +2080,8 @@ mod tests {
 
     #[test]
     fn test_conditional_select() {
-        let a = Scalar::from(12);
-        let b = Scalar::from(34);
+        let a = Scalar::from_const(12);
+        let b = Scalar::from_const(34);
         assert_eq!(Scalar::conditional_select(&a, &b, Choice::from(0)), a);
         assert_eq!(Scalar::conditional_select(&a, &b, Choice::from(1)), b);
         assert_eq!(
@@ -2008,10 +2100,10 @@ mod tests {
     fn test_is_odd() {
         assert_eq!(bool::from(Scalar::ZERO.is_odd()), false);
         assert_eq!(bool::from(Scalar::ONE.is_odd()), true);
-        assert_eq!(bool::from(Scalar::from(2).is_odd()), false);
-        assert_eq!(bool::from(Scalar::from(3).is_odd()), true);
-        assert_eq!(bool::from(Scalar::from(100).is_odd()), false);
-        assert_eq!(bool::from(Scalar::from(101).is_odd()), true);
+        assert_eq!(bool::from(Scalar::from_const(2).is_odd()), false);
+        assert_eq!(bool::from(Scalar::from_const(3).is_odd()), true);
+        assert_eq!(bool::from(Scalar::from_const(100).is_odd()), false);
+        assert_eq!(bool::from(Scalar::from_const(101).is_odd()), true);
         assert_eq!(bool::from(Scalar::MAX_MINUS_ONE.is_odd()), true);
         assert_eq!(bool::from(Scalar::MAX.is_odd()), false);
     }
@@ -2020,8 +2112,8 @@ mod tests {
     fn test_square() {
         assert_eq!(Scalar::ZERO.square(), Scalar::ZERO);
         assert_eq!(Scalar::ONE.square(), Scalar::ONE);
-        assert_eq!(Scalar::from(7).square(), Scalar::from(49));
-        assert_eq!(Scalar::from(12).square(), Scalar::from(144));
+        assert_eq!(Scalar::from_const(7).square(), Scalar::from_const(49));
+        assert_eq!(Scalar::from_const(12).square(), Scalar::from_const(144));
         let v = parse_scalar("0x35264695f12d2c6cefa453ccda4c1bc5051c7b8b648915cc889b9c7d7c162aa5");
         assert_eq!(v.square(), v * v);
         let v = parse_scalar("0x1be5c79927a7c7c2c1057e99b51e26efc2bac5029c6322e20405fc9334c50a9f");
@@ -2031,12 +2123,12 @@ mod tests {
     #[test]
     fn test_double() {
         assert_eq!(Scalar::ZERO.double(), Scalar::ZERO);
-        assert_eq!(Scalar::ONE.double(), Scalar::from(2));
-        assert_eq!(Scalar::from(21).double(), Scalar::from(42));
+        assert_eq!(Scalar::ONE.double(), Scalar::from_const(2));
+        assert_eq!(Scalar::from_const(21).double(), Scalar::from_const(42));
         let v = parse_scalar("0x35264695f12d2c6cefa453ccda4c1bc5051c7b8b648915cc889b9c7d7c162aa5");
         assert_eq!(v.double(), v + v);
         assert_eq!(Scalar::MAX.double(), Scalar::MAX_MINUS_ONE);
-        assert_eq!(Scalar::MAX_MINUS_ONE.double(), -Scalar::from(4));
+        assert_eq!(Scalar::MAX_MINUS_ONE.double(), -Scalar::from_const(4));
     }
 
     #[test]
@@ -2044,7 +2136,7 @@ mod tests {
         assert!(bool::from(Scalar::ZERO.invert().is_none()));
         assert_eq!(Scalar::ONE.invert().unwrap(), Scalar::ONE);
         assert_eq!(Scalar::MAX.invert().unwrap(), Scalar::MAX);
-        assert_eq!(Scalar::from(2).invert().unwrap(), Scalar::TWO_INV);
+        assert_eq!(Scalar::from_const(2).invert().unwrap(), Scalar::TWO_INV);
         let v = parse_scalar("0x35264695f12d2c6cefa453ccda4c1bc5051c7b8b648915cc889b9c7d7c162aa5");
         assert_eq!(v * v.invert().unwrap(), Scalar::ONE);
         let v = parse_scalar("0x1be5c79927a7c7c2c1057e99b51e26efc2bac5029c6322e20405fc9334c50a9f");
@@ -2055,10 +2147,10 @@ mod tests {
     fn test_sqrt() {
         assert_eq!(Scalar::ZERO.sqrt().unwrap(), Scalar::ZERO);
         assert_eq!(Scalar::ONE.sqrt().unwrap(), Scalar::ONE);
-        assert_eq!(Scalar::from(2).sqrt().unwrap().square(), 2.into());
-        assert_eq!(Scalar::from(3).sqrt().unwrap().square(), 3.into());
-        assert_eq!(Scalar::from(4).sqrt().unwrap().square(), 4.into());
-        assert!(Scalar::from(5).sqrt().into_option().is_none());
+        assert_eq!(Scalar::from_const(2).sqrt().unwrap().square(), 2.into());
+        assert_eq!(Scalar::from_const(3).sqrt().unwrap().square(), 3.into());
+        assert_eq!(Scalar::from_const(4).sqrt().unwrap().square(), 4.into());
+        assert!(Scalar::from_const(5).sqrt().into_option().is_none());
         assert!(
             parse_scalar("0x26f9845e46b8d4a46419673fcd8d6a22df74920c2f1149eb60839d7e3dfbe8ec")
                 .sqrt()
