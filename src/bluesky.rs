@@ -4,6 +4,7 @@ use ff::{
     derive::{adc, mac, sbb},
 };
 use primitive_types::{U256, U512};
+use rand_core::TryRng;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::iter::{Product, Sum};
@@ -679,10 +680,10 @@ impl Field for Scalar {
         0x0000000000000000u64,
     );
 
-    fn random(mut rng: impl rand_core::RngCore) -> Self {
+    fn try_random<R: TryRng + ?Sized>(rng: &mut R) -> Result<Self, R::Error> {
         let mut bytes = [0u8; 64];
-        rng.fill_bytes(&mut bytes);
-        Self::from_repr_wide(&bytes)
+        rng.try_fill_bytes(&mut bytes)?;
+        Ok(Self::from_repr_wide(&bytes))
     }
 
     fn square(&self) -> Self {
