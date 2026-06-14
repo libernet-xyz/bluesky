@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use ff::{
     Field, PrimeField,
     derive::{adc, mac, sbb},
@@ -433,29 +433,134 @@ impl Scalar {
         getrandom::fill(&mut bytes).unwrap();
         Self::from_repr_wide(&bytes)
     }
+
+    fn parse(s: &str, radix: u8) -> Result<Self, anyhow::Error> {
+        if s.is_empty() {
+            return Err(anyhow!("cannot parse a scalar from an empty string"));
+        }
+        static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEF";
+        static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdef";
+        let mut value = U256::zero();
+        for byte in s.bytes() {
+            let digit = CHARACTERS_UPPER_CASE[..radix as usize]
+                .iter()
+                .position(|&c| c == byte)
+                .or_else(|| {
+                    CHARACTERS_LOWER_CASE[..radix as usize]
+                        .iter()
+                        .position(|&c| c == byte)
+                })
+                .ok_or_else(|| {
+                    anyhow!("invalid character '{}' for base {}", byte as char, radix)
+                })?;
+            value = value
+                .checked_mul(radix.into())
+                .context("overflow")?
+                .checked_add(digit.into())
+                .context("overflow")?;
+        }
+        Scalar::try_from(value)
+    }
+
+    pub fn from_str_radix(s: &str, radix: u8) -> Result<Self, anyhow::Error> {
+        match radix {
+            2 | 8 | 10 | 16 => Self::parse(s, radix),
+            _ => unimplemented!(),
+        }
+    }
+
+    fn print_dec(&self, pad_to: usize) -> String {
+        static CHARACTERS: &'static [u8] = b"0123456789";
+        let mut value = self.to_u256();
+        let mut s = String::default();
+        let radix = U256::from(10);
+        while !value.is_zero() {
+            let digit = (value % radix).as_usize();
+            s.push(CHARACTERS[digit] as char);
+            value /= radix;
+        }
+        if s.is_empty() {
+            s.push('0');
+        }
+        while s.len() < pad_to {
+            s.push('0');
+        }
+        s.chars().rev().collect()
+    }
+
+    fn print_bin(&self, radix: u8, pad_to: usize, upper_case: bool) -> String {
+        static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEF";
+        static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdef";
+        let characters = if upper_case {
+            CHARACTERS_UPPER_CASE
+        } else {
+            CHARACTERS_LOWER_CASE
+        };
+        let mut value = self.to_u256();
+        let mut s = String::default();
+        let radix_log2: usize = match radix {
+            2 => 1,
+            8 => 3,
+            16 => 4,
+            _ => panic!(),
+        };
+        let mask = U256::from((1 << radix_log2) - 1);
+        while !value.is_zero() {
+            let digit = (value & mask).as_usize();
+            s.push(characters[digit] as char);
+            value >>= radix_log2;
+        }
+        if s.is_empty() {
+            s.push('0');
+        }
+        while s.len() < pad_to {
+            s.push('0');
+        }
+        s.chars().rev().collect()
+    }
+
+    pub fn to_str_radix(&self, radix: u8, pad_to: usize, upper_case: bool) -> String {
+        match radix {
+            10 => self.print_dec(pad_to),
+            2 | 8 | 16 => self.print_bin(radix, pad_to, upper_case),
+            _ => unimplemented!(),
+        }
+    }
 }
 
 impl Debug for Scalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#066x}", self.to_u256())
+        write!(f, "0x{}", self.to_str_radix(16, 64, false))
     }
 }
 
 impl std::fmt::Display for Scalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#066x}", self.to_u256())
+        write!(f, "0x{}", self.to_str_radix(16, 64, false))
+    }
+}
+
+impl std::fmt::Binary for Scalar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0b{}", self.to_str_radix(2, 256, false))
+    }
+}
+
+impl std::fmt::Octal for Scalar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0o{}", self.to_str_radix(8, 86, false))
     }
 }
 
 impl std::fmt::LowerHex for Scalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#066x}", self.to_u256())
+        write!(f, "0x{}", self.to_str_radix(16, 64, false))
     }
 }
 
 impl std::fmt::UpperHex for Scalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#066X}", self.to_u256())
+        write!(f, "0x{}", self.to_str_radix(16, 64, true))
     }
 }
 
@@ -492,13 +597,15 @@ impl FromStr for Scalar {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let value = if s.starts_with("0x") || s.starts_with("0X") {
-            U256::from_str_radix(&s[2..], 16)
+        if s.starts_with("0x") || s.starts_with("0X") {
+            Scalar::from_str_radix(&s[2..], 16)
+        } else if s.starts_with("0b") || s.starts_with("0B") {
+            Scalar::from_str_radix(&s[2..], 2)
+        } else if s.starts_with("0") || s.starts_with("0") {
+            Scalar::from_str_radix(s, 8)
         } else {
-            U256::from_str_radix(s, 10)
+            Scalar::from_str_radix(s, 10)
         }
-        .context("failed to parse scalar")?;
-        Self::try_from(value)
     }
 }
 
@@ -2207,4 +2314,177 @@ mod tests {
         let v = parse_scalar("0x4dd28128e1cd4cedfb041d4e87476561b8c347877bd4a82687fac6e5d7264156");
         assert_eq!(v.sqrt().unwrap().square(), v);
     }
+
+    #[test]
+    fn test_parse_binary() {
+        assert_eq!(
+            Scalar::from_str_radix("0", 2).unwrap(),
+            Scalar::from_const(0)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("1", 2).unwrap(),
+            Scalar::from_const(1)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("00", 2).unwrap(),
+            Scalar::from_const(0)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("01", 2).unwrap(),
+            Scalar::from_const(1)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("10", 2).unwrap(),
+            Scalar::from_const(2)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("11", 2).unwrap(),
+            Scalar::from_const(3)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000000110011100111101110111110010100111101001101101010101010001111011111111111111111111111111111111111111111111111111111111111111", 2).unwrap(),
+            Scalar::MAX - Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_str_radix("111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000000110011100111101110111110010100111101001101101010101010001111100000000000000000000000000000000000000000000000000000000000000", 2).unwrap(),
+            Scalar::MAX
+        );
+        assert!(
+            Scalar::from_str_radix("111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000000110011100111101110111110010100111101001101101010101010001111100000000000000000000000000000000000000000000000000000000000001", 2).is_err(),
+        );
+    }
+
+    #[test]
+    fn test_print_binary() {
+        assert_eq!(Scalar::from_const(0).to_str_radix(2, 0, false), "0");
+        assert_eq!(Scalar::from_const(1).to_str_radix(2, 0, false), "1");
+        assert_eq!(Scalar::from_const(2).to_str_radix(2, 0, false), "10");
+        assert_eq!(Scalar::from_const(3).to_str_radix(2, 0, false), "11");
+        assert_eq!(Scalar::from_const(0).to_str_radix(2, 1, false), "0");
+        assert_eq!(Scalar::from_const(1).to_str_radix(2, 1, false), "1");
+        assert_eq!(Scalar::from_const(2).to_str_radix(2, 1, false), "10");
+        assert_eq!(Scalar::from_const(3).to_str_radix(2, 1, false), "11");
+        assert_eq!(Scalar::from_const(0).to_str_radix(2, 2, false), "00");
+        assert_eq!(Scalar::from_const(1).to_str_radix(2, 2, false), "01");
+        assert_eq!(Scalar::from_const(2).to_str_radix(2, 2, false), "10");
+        assert_eq!(Scalar::from_const(3).to_str_radix(2, 2, false), "11");
+        assert_eq!(
+            (Scalar::MAX - Scalar::ONE).to_str_radix(2, 0, false),
+            "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000000110011100111101110111110010100111101001101101010101010001111011111111111111111111111111111111111111111111111111111111111111"
+        );
+        assert_eq!(
+            Scalar::MAX.to_str_radix(2, 0, false),
+            "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000000110011100111101110111110010100111101001101101010101010001111100000000000000000000000000000000000000000000000000000000000000"
+        );
+    }
+
+    #[test]
+    fn test_parse_octal() {
+        assert_eq!(
+            Scalar::from_str_radix("0", 8).unwrap(),
+            Scalar::from_const(0)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("1", 8).unwrap(),
+            Scalar::from_const(1)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("2", 8).unwrap(),
+            Scalar::from_const(2)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("6", 8).unwrap(),
+            Scalar::from_const(6)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("7", 8).unwrap(),
+            Scalar::from_const(7)
+        );
+        assert!(Scalar::from_str_radix("8", 8).is_err());
+        assert_eq!(
+            Scalar::from_str_radix("00", 8).unwrap(),
+            Scalar::from_const(0)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("01", 8).unwrap(),
+            Scalar::from_const(1)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("02", 8).unwrap(),
+            Scalar::from_const(2)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("10", 8).unwrap(),
+            Scalar::from_const(8)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("11", 8).unwrap(),
+            Scalar::from_const(9)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("12", 8).unwrap(),
+            Scalar::from_const(10)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("20", 8).unwrap(),
+            Scalar::from_const(16)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("21", 8).unwrap(),
+            Scalar::from_const(17)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("22", 8).unwrap(),
+            Scalar::from_const(18)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("7777777777777777777777777777777777777777770063475676247515525217377777777777777777777", 8).unwrap(),
+            Scalar::MAX - Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_str_radix("7777777777777777777777777777777777777777770063475676247515525217400000000000000000000", 8).unwrap(),
+            Scalar::MAX
+        );
+        assert!(
+            Scalar::from_str_radix("7777777777777777777777777777777777777777770063475676247515525217400000000000000000001", 8).is_err(),
+        );
+    }
+
+    #[test]
+    fn test_print_octal() {
+        assert_eq!(Scalar::from_const(0).to_str_radix(8, 0, false), "0");
+        assert_eq!(Scalar::from_const(1).to_str_radix(8, 0, false), "1");
+        assert_eq!(Scalar::from_const(2).to_str_radix(8, 0, false), "2");
+        assert_eq!(Scalar::from_const(6).to_str_radix(8, 0, false), "6");
+        assert_eq!(Scalar::from_const(7).to_str_radix(8, 0, false), "7");
+        assert_eq!(Scalar::from_const(8).to_str_radix(8, 0, false), "10");
+        assert_eq!(Scalar::from_const(9).to_str_radix(8, 0, false), "11");
+        assert_eq!(Scalar::from_const(10).to_str_radix(8, 0, false), "12");
+        assert_eq!(Scalar::from_const(0).to_str_radix(8, 1, false), "0");
+        assert_eq!(Scalar::from_const(1).to_str_radix(8, 1, false), "1");
+        assert_eq!(Scalar::from_const(2).to_str_radix(8, 1, false), "2");
+        assert_eq!(Scalar::from_const(6).to_str_radix(8, 1, false), "6");
+        assert_eq!(Scalar::from_const(7).to_str_radix(8, 1, false), "7");
+        assert_eq!(Scalar::from_const(8).to_str_radix(8, 1, false), "10");
+        assert_eq!(Scalar::from_const(9).to_str_radix(8, 1, false), "11");
+        assert_eq!(Scalar::from_const(10).to_str_radix(8, 1, false), "12");
+        assert_eq!(Scalar::from_const(0).to_str_radix(8, 2, false), "00");
+        assert_eq!(Scalar::from_const(1).to_str_radix(8, 2, false), "01");
+        assert_eq!(Scalar::from_const(2).to_str_radix(8, 2, false), "02");
+        assert_eq!(Scalar::from_const(6).to_str_radix(8, 2, false), "06");
+        assert_eq!(Scalar::from_const(7).to_str_radix(8, 2, false), "07");
+        assert_eq!(Scalar::from_const(8).to_str_radix(8, 2, false), "10");
+        assert_eq!(Scalar::from_const(9).to_str_radix(8, 2, false), "11");
+        assert_eq!(Scalar::from_const(10).to_str_radix(8, 2, false), "12");
+        assert_eq!(
+            (Scalar::MAX - Scalar::ONE).to_str_radix(8, 0, false),
+            "7777777777777777777777777777777777777777770063475676247515525217377777777777777777777"
+        );
+        assert_eq!(
+            Scalar::MAX.to_str_radix(8, 0, false),
+            "7777777777777777777777777777777777777777770063475676247515525217400000000000000000000"
+        );
+    }
+
+    // TODO
 }
