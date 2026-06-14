@@ -4,6 +4,7 @@ use ff::{
     derive::{adc, mac, sbb},
 };
 use primitive_types::{U256, U512};
+use rand_core::TryRng;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::iter::{Product, Sum};
@@ -423,6 +424,15 @@ impl Scalar {
     pub fn to_u256(&self) -> U256 {
         U256::from_little_endian(&self.to_repr())
     }
+
+    /// Picks a uniformly distributed random scalar securely using the OS RNG.
+    ///
+    /// Relies on `getrandom::fill`.
+    pub fn random_default() -> Scalar {
+        let mut bytes = [0u8; 64];
+        getrandom::fill(&mut bytes).unwrap();
+        Self::from_repr_wide(&bytes)
+    }
 }
 
 impl Debug for Scalar {
@@ -679,10 +689,10 @@ impl Field for Scalar {
         0x0000000000000000u64,
     );
 
-    fn random(mut rng: impl rand_core::RngCore) -> Self {
+    fn try_random<R: TryRng + ?Sized>(rng: &mut R) -> Result<Self, R::Error> {
         let mut bytes = [0u8; 64];
-        rng.fill_bytes(&mut bytes);
-        Self::from_repr_wide(&bytes)
+        rng.try_fill_bytes(&mut bytes)?;
+        Ok(Self::from_repr_wide(&bytes))
     }
 
     fn square(&self) -> Self {
@@ -2106,6 +2116,43 @@ mod tests {
         assert_eq!(bool::from(Scalar::from_const(101).is_odd()), true);
         assert_eq!(bool::from(Scalar::MAX_MINUS_ONE.is_odd()), true);
         assert_eq!(bool::from(Scalar::MAX.is_odd()), false);
+    }
+
+    struct OsRng;
+
+    impl rand_core::TryRng for OsRng {
+        type Error = getrandom::Error;
+
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
+            getrandom::fill(dest)
+        }
+
+        fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+            let mut bytes = [0u8; 4];
+            getrandom::fill(&mut bytes)?;
+            Ok(u32::from_le_bytes(bytes))
+        }
+
+        fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+            let mut bytes = [0u8; 8];
+            getrandom::fill(&mut bytes)?;
+            Ok(u64::from_le_bytes(bytes))
+        }
+    }
+
+    #[test]
+    fn test_random_with_rng() {
+        let mut rng = rand_core::UnwrapErr(OsRng);
+        assert_ne!(Scalar::random(&mut rng), Scalar::random(&mut rng));
+        assert_ne!(Scalar::random(&mut rng), Scalar::random(&mut rng));
+        assert_ne!(Scalar::random(&mut rng), Scalar::random(&mut rng));
+    }
+
+    #[test]
+    fn test_random_default() {
+        assert_ne!(Scalar::random_default(), Scalar::random_default());
+        assert_ne!(Scalar::random_default(), Scalar::random_default());
+        assert_ne!(Scalar::random_default(), Scalar::random_default());
     }
 
     #[test]
