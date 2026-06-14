@@ -1,5 +1,8 @@
 # BlueSky
 
+[![CI](https://img.shields.io/github/actions/workflow/status/libernet-xyz/bluesky/ci.yml?label=CI)](https://github.com/libernet-xyz/bluesky/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/starkom-bluesky.svg)](https://crates.io/crates/starkom-bluesky)
+
 ## Overview
 
 Starkom and Libernet are entirely based on a finite scalar field known as **BlueSky**.
