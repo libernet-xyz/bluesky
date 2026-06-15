@@ -462,6 +462,10 @@ impl Scalar {
         Scalar::try_from(value)
     }
 
+    /// Parses a scalar from the string `s` interpreted in the given `radix` (2, 8, 10, or 16).
+    ///
+    /// Returns an error if `s` contains a character invalid for the radix or if the resulting value
+    /// exceeds the BlueSky field modulus.
     pub fn from_str_radix(s: &str, radix: u8) -> Result<Self, anyhow::Error> {
         match radix {
             2 | 8 | 10 | 16 => Self::parse(s, radix),
@@ -519,6 +523,11 @@ impl Scalar {
         s.chars().rev().collect()
     }
 
+    /// Formats this scalar as a string in the given `radix` (2, 8, 10, or 16).
+    ///
+    /// The result is left-padded with zeros to at least `pad_to` characters.
+    ///
+    /// For base 16, `upper_case` controls the case of hex digits A–F; it is ignored for other bases.
     pub fn to_str_radix(&self, radix: u8, pad_to: usize, upper_case: bool) -> String {
         match radix {
             10 => self.print_dec(pad_to),
