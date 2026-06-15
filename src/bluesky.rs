@@ -601,6 +601,8 @@ impl FromStr for Scalar {
             Scalar::from_str_radix(&s[2..], 16)
         } else if s.starts_with("0b") || s.starts_with("0B") {
             Scalar::from_str_radix(&s[2..], 2)
+        } else if s.starts_with("0o") || s.starts_with("0O") {
+            Scalar::from_str_radix(&s[2..], 8)
         } else if s.starts_with("0") || s.starts_with("0") {
             Scalar::from_str_radix(s, 8)
         } else {
@@ -2656,5 +2658,20 @@ mod tests {
             Scalar::MAX.to_str_radix(10, 0, false),
             "57896044618658097711785492504343953925963004582726670246466397748101839323136"
         );
+    }
+
+    #[test]
+    fn test_parse_any() {
+        assert_eq!("0".parse::<Scalar>().unwrap(), from_const(0));
+        assert_eq!("12".parse::<Scalar>().unwrap(), from_const(12));
+        assert_eq!("34".parse::<Scalar>().unwrap(), from_const(34));
+        assert_eq!("0x42".parse::<Scalar>().unwrap(), from_const(66));
+        assert_eq!("0x0024".parse::<Scalar>().unwrap(), from_const(36));
+        assert_eq!("0b00101010".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0b11000".parse::<Scalar>().unwrap(), from_const(24));
+        assert_eq!("0o0123".parse::<Scalar>().unwrap(), from_const(83));
+        assert_eq!("0o456".parse::<Scalar>().unwrap(), from_const(302));
+        assert_eq!("0123".parse::<Scalar>().unwrap(), from_const(83));
+        assert_eq!("0456".parse::<Scalar>().unwrap(), from_const(302));
     }
 }
