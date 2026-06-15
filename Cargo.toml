@@ -1,6 +1,6 @@
 [package]
 name = "starkom-bluesky"
-version = "2.4.0"
+version = "2.4.1"
 description = "The BlueSky scalar field used in Starkom."
 license = "Apache-2.0"
 repository = "https://github.com/libernet-xyz/bluesky.git"
