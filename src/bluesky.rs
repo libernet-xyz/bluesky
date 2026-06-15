@@ -2842,5 +2842,114 @@ mod tests {
         );
     }
 
-    // TODO
+    #[test]
+    fn test_parse_decimal() {
+        assert_eq!(
+            Scalar::from_str_radix("0", 10).unwrap(),
+            Scalar::from_const(0)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("1", 10).unwrap(),
+            Scalar::from_const(1)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("2", 10).unwrap(),
+            Scalar::from_const(2)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("00", 10).unwrap(),
+            Scalar::from_const(0)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("01", 10).unwrap(),
+            Scalar::from_const(1)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("02", 10).unwrap(),
+            Scalar::from_const(2)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("10", 10).unwrap(),
+            Scalar::from_const(10)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("11", 10).unwrap(),
+            Scalar::from_const(11)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("12", 10).unwrap(),
+            Scalar::from_const(12)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("20", 10).unwrap(),
+            Scalar::from_const(20)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("21", 10).unwrap(),
+            Scalar::from_const(21)
+        );
+        assert_eq!(
+            Scalar::from_str_radix("22", 10).unwrap(),
+            Scalar::from_const(22)
+        );
+        assert_eq!(
+            Scalar::from_str_radix(
+                "57896044618658097711785492504343953925963004582726670246466397748101839323135",
+                10
+            )
+            .unwrap(),
+            Scalar::MAX - Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_str_radix(
+                "57896044618658097711785492504343953925963004582726670246466397748101839323136",
+                10
+            )
+            .unwrap(),
+            Scalar::MAX
+        );
+        assert!(
+            Scalar::from_str_radix(
+                "57896044618658097711785492504343953925963004582726670246466397748101839323137",
+                10
+            )
+            .is_err(),
+        );
+    }
+
+    #[test]
+    fn test_print_decimal() {
+        assert_eq!(Scalar::from_const(0).to_str_radix(10, 0, false), "0");
+        assert_eq!(Scalar::from_const(1).to_str_radix(10, 0, false), "1");
+        assert_eq!(Scalar::from_const(2).to_str_radix(10, 0, false), "2");
+        assert_eq!(Scalar::from_const(9).to_str_radix(10, 0, false), "9");
+        assert_eq!(Scalar::from_const(10).to_str_radix(10, 0, false), "10");
+        assert_eq!(Scalar::from_const(11).to_str_radix(10, 0, false), "11");
+        assert_eq!(Scalar::from_const(0).to_str_radix(10, 1, false), "0");
+        assert_eq!(Scalar::from_const(1).to_str_radix(10, 1, false), "1");
+        assert_eq!(Scalar::from_const(2).to_str_radix(10, 1, false), "2");
+        assert_eq!(Scalar::from_const(9).to_str_radix(10, 1, false), "9");
+        assert_eq!(Scalar::from_const(10).to_str_radix(10, 1, false), "10");
+        assert_eq!(Scalar::from_const(11).to_str_radix(10, 1, false), "11");
+        assert_eq!(Scalar::from_const(0).to_str_radix(10, 2, false), "00");
+        assert_eq!(Scalar::from_const(1).to_str_radix(10, 2, false), "01");
+        assert_eq!(Scalar::from_const(2).to_str_radix(10, 2, false), "02");
+        assert_eq!(Scalar::from_const(9).to_str_radix(10, 2, false), "09");
+        assert_eq!(Scalar::from_const(10).to_str_radix(10, 2, false), "10");
+        assert_eq!(Scalar::from_const(11).to_str_radix(10, 2, false), "11");
+        assert_eq!(Scalar::from_const(0).to_str_radix(10, 3, false), "000");
+        assert_eq!(Scalar::from_const(1).to_str_radix(10, 3, false), "001");
+        assert_eq!(Scalar::from_const(2).to_str_radix(10, 3, false), "002");
+        assert_eq!(Scalar::from_const(9).to_str_radix(10, 3, false), "009");
+        assert_eq!(Scalar::from_const(10).to_str_radix(10, 3, false), "010");
+        assert_eq!(Scalar::from_const(11).to_str_radix(10, 3, false), "011");
+        assert_eq!(
+            (Scalar::MAX - Scalar::ONE).to_str_radix(10, 0, false),
+            "57896044618658097711785492504343953925963004582726670246466397748101839323135"
+        );
+        assert_eq!(
+            Scalar::MAX.to_str_radix(10, 0, false),
+            "57896044618658097711785492504343953925963004582726670246466397748101839323136"
+        );
+    }
 }
