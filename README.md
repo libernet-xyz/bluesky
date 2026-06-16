@@ -1,7 +1,7 @@
 # BlueSky
 
 [![CI](https://img.shields.io/github/actions/workflow/status/libernet-xyz/bluesky/ci.yml?label=CI)](https://github.com/libernet-xyz/bluesky/actions/workflows/ci.yml)
-[![crates.io](https://img.shields.io/crates/v/starkom-bluesky.svg)](https://crates.io/crates/starkom-bluesky)
+[![crates.io](https://img.shields.io/crates/v/starkom-bluesky)](https://crates.io/crates/starkom-bluesky)
 
 ## Overview
 
