@@ -2,6 +2,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/libernet-xyz/bluesky/ci.yml?label=CI)](https://github.com/libernet-xyz/bluesky/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/starkom-bluesky)](https://crates.io/crates/starkom-bluesky)
+[![license](https://img.shields.io/crates/l/starkom-bluesky)](https://github.com/libernet-xyz/bluesky/blob/main/LICENSE)
 
 ## Overview
 
