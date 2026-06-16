@@ -438,6 +438,7 @@ impl Scalar {
         if s.is_empty() {
             return Err(anyhow!("cannot parse a scalar from an empty string"));
         }
+        let radix_u256: U256 = radix.into();
         static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEF";
         static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdef";
         let mut value = U256::zero();
@@ -454,7 +455,7 @@ impl Scalar {
                     anyhow!("invalid character '{}' for base {}", byte as char, radix)
                 })?;
             value = value
-                .checked_mul(radix.into())
+                .checked_mul(radix_u256)
                 .context("overflow")?
                 .checked_add(digit.into())
                 .context("overflow")?;
@@ -492,7 +493,7 @@ impl Scalar {
         s.chars().rev().collect()
     }
 
-    fn print_bin(&self, radix: u8, pad_to: usize, upper_case: bool) -> String {
+    fn print_bin(&self, radix_log2: u8, pad_to: usize, upper_case: bool) -> String {
         static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEF";
         static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdef";
         let characters = if upper_case {
@@ -502,12 +503,6 @@ impl Scalar {
         };
         let mut value = self.to_u256();
         let mut s = String::default();
-        let radix_log2: usize = match radix {
-            2 => 1,
-            8 => 3,
-            16 => 4,
-            _ => panic!(),
-        };
         let mask = U256::from((1 << radix_log2) - 1);
         while !value.is_zero() {
             let digit = (value & mask).as_usize();
@@ -530,8 +525,10 @@ impl Scalar {
     /// For base 16, `upper_case` controls the case of hex digits A–F; it is ignored for other bases.
     pub fn to_str_radix(&self, radix: u8, pad_to: usize, upper_case: bool) -> String {
         match radix {
+            2 => self.print_bin(1, pad_to, upper_case),
+            8 => self.print_bin(3, pad_to, upper_case),
             10 => self.print_dec(pad_to),
-            2 | 8 | 16 => self.print_bin(radix, pad_to, upper_case),
+            16 => self.print_bin(4, pad_to, upper_case),
             _ => unimplemented!(),
         }
     }
