@@ -936,6 +936,31 @@ impl PrimeField for Scalar {
 
 impl PrimeField256 for Scalar {}
 
+impl ThreeAdicField for Scalar {
+    const T: u32 = 39;
+
+    const THREE_INV: Self = Self(
+        0x1555555555555555u64,
+        0x532eb60475cc38e8u64,
+        0xaaaaaaaaaaaaaaabu64,
+        0x2aaaaaaaaaaaaaaau64,
+    );
+
+    const THREE_ADIC_ROOT_OF_UNITY: Self = Self(
+        0x6bb97af29ca6dd9du64,
+        0xa4274c2efcc4eac5u64,
+        0x0e0ed5807a7ff8a3u64,
+        0x41d8fc132eaa2afdu64,
+    );
+
+    const THREE_ADIC_ROOT_OF_UNITY_INV: Self = Self(
+        0x35aa2ff058bc4166u64,
+        0x359b814b693ec81eu64,
+        0x7201659d84adb9e2u64,
+        0x5587fd1dd27afee1u64,
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2649,6 +2674,34 @@ mod tests {
         assert_eq!(
             Scalar::DELTA,
             Scalar::MULTIPLICATIVE_GENERATOR.pow(from_const(1u64 << Scalar::S))
+        );
+    }
+
+    #[test]
+    fn test_three_inv() {
+        assert_eq!(Scalar::THREE_INV, from_const(3).invert_unwrap());
+        assert_eq!(Scalar::THREE_INV.invert_unwrap(), from_const(3));
+    }
+
+    #[test]
+    fn test_three_adic_root_of_unity() {
+        for i in 0..Scalar::T {
+            assert_ne!(
+                Scalar::THREE_ADIC_ROOT_OF_UNITY.pow(from_const(1u64 << i)),
+                Scalar::ONE
+            );
+        }
+        assert_eq!(
+            Scalar::THREE_ADIC_ROOT_OF_UNITY.pow(from_const(3).pow_small(Scalar::T as usize)),
+            Scalar::ONE
+        );
+    }
+
+    #[test]
+    fn test_three_adic_root_of_unity_inverse() {
+        assert_eq!(
+            Scalar::THREE_ADIC_ROOT_OF_UNITY_INV,
+            Scalar::THREE_ADIC_ROOT_OF_UNITY.invert_unwrap()
         );
     }
 }
