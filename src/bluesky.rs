@@ -889,7 +889,7 @@ impl PrimeField for Scalar {
     const MODULUS: &'static str =
         "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000001";
 
-    const S: usize = 32;
+    const S: usize = 62;
 
     const MULTIPLICATIVE_GENERATOR: Self = Self(
         0x7ffffffffffffff6u64,
@@ -2598,14 +2598,14 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn test_multiplicative_generator() {
-    //     assert_eq!(Scalar::MULTIPLICATIVE_GENERATOR, from_const(5));
-    //     assert_eq!(
-    //         Scalar::MULTIPLICATIVE_GENERATOR.pow(Scalar::MAX / from_const(1u64 << Scalar::S)),
-    //         Scalar::ROOT_OF_UNITY
-    //     );
-    // }
+    #[test]
+    fn test_multiplicative_generator() {
+        assert_eq!(Scalar::MULTIPLICATIVE_GENERATOR, from_const(5));
+        assert_eq!(
+            Scalar::MULTIPLICATIVE_GENERATOR.pow(Scalar::MAX / from_const(1u64 << Scalar::S)),
+            Scalar::ROOT_OF_UNITY
+        );
+    }
 
     #[test]
     fn test_minus_two() {
@@ -2622,5 +2622,33 @@ mod tests {
         assert_eq!(Scalar::TWO_INV.invert_unwrap(), from_const(2));
     }
 
-    // TODO
+    #[test]
+    fn test_root_of_unity() {
+        for i in 0..Scalar::S {
+            assert_ne!(
+                Scalar::ROOT_OF_UNITY.pow(from_const(1u64 << i)),
+                Scalar::ONE
+            );
+        }
+        assert_eq!(
+            Scalar::ROOT_OF_UNITY.pow(from_const(1u64 << Scalar::S)),
+            Scalar::ONE
+        );
+    }
+
+    #[test]
+    fn test_root_of_unity_inverse() {
+        assert_eq!(
+            Scalar::ROOT_OF_UNITY_INV,
+            Scalar::ROOT_OF_UNITY.invert_unwrap()
+        );
+    }
+
+    #[test]
+    fn test_delta() {
+        assert_eq!(
+            Scalar::DELTA,
+            Scalar::MULTIPLICATIVE_GENERATOR.pow(from_const(1u64 << Scalar::S))
+        );
+    }
 }
