@@ -1301,5 +1301,358 @@ mod tests {
         assert_eq!(Scalar::conditional_select(&a, &a, Choice::from(1)), a);
     }
 
+    #[test]
+    fn test_add() {
+        let lhs =
+            parse_scalar("0x35264695f12d2c6cefa453ccda4c1bc5051c7b8b648915cc889b9c7d7c162aa5");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        assert_eq!(
+            lhs + rhs,
+            parse_scalar("0x6447adc64b17816528ee763e0b64ce7ee546304e19dd71176e7b468d8c9a6e7b")
+        );
+        assert_eq!(
+            lhs + &rhs,
+            parse_scalar("0x6447adc64b17816528ee763e0b64ce7ee546304e19dd71176e7b468d8c9a6e7b")
+        );
+    }
+
+    #[test]
+    fn test_add_wraparound() {
+        let lhs =
+            parse_scalar("0x5445e022a3c13a026ec2378170357420280e21d24f537bca42830d1bb5823236");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        assert_eq!(
+            lhs + rhs,
+            parse_scalar("0x03674752fdab8efaa80c59f2a14e26dc01c3f8a2660c81cd6862b72bc606760b")
+        );
+        assert_eq!(
+            lhs + &rhs,
+            parse_scalar("0x03674752fdab8efaa80c59f2a14e26dc01c3f8a2660c81cd6862b72bc606760b")
+        );
+    }
+
+    #[test]
+    fn test_add_assign() {
+        let mut lhs =
+            parse_scalar("0x35264695f12d2c6cefa453ccda4c1bc5051c7b8b648915cc889b9c7d7c162aa5");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        lhs += rhs;
+        assert_eq!(
+            lhs,
+            parse_scalar("0x6447adc64b17816528ee763e0b64ce7ee546304e19dd71176e7b468d8c9a6e7b")
+        );
+    }
+
+    #[test]
+    fn test_add_assign_ref() {
+        let mut lhs =
+            parse_scalar("0x35264695f12d2c6cefa453ccda4c1bc5051c7b8b648915cc889b9c7d7c162aa5");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        lhs += &rhs;
+        assert_eq!(
+            lhs,
+            parse_scalar("0x6447adc64b17816528ee763e0b64ce7ee546304e19dd71176e7b468d8c9a6e7b")
+        );
+    }
+
+    #[test]
+    fn test_add_assign_wraparound() {
+        let mut lhs =
+            parse_scalar("0x5445e022a3c13a026ec2378170357420280e21d24f537bca42830d1bb5823236");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        lhs += rhs;
+        assert_eq!(
+            lhs,
+            parse_scalar("0x03674752fdab8efaa80c59f2a14e26dc01c3f8a2660c81cd6862b72bc606760b")
+        );
+    }
+
+    #[test]
+    fn test_add_assign_wraparound_ref() {
+        let mut lhs =
+            parse_scalar("0x5445e022a3c13a026ec2378170357420280e21d24f537bca42830d1bb5823236");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        lhs += &rhs;
+        assert_eq!(
+            lhs,
+            parse_scalar("0x03674752fdab8efaa80c59f2a14e26dc01c3f8a2660c81cd6862b72bc606760b")
+        );
+    }
+
+    fn test_neg_impl(value: Scalar) {
+        assert_eq!(-value, Scalar::MAX - value + Scalar::ONE);
+    }
+
+    #[test]
+    fn test_neg() {
+        assert_eq!(-Scalar::ZERO, Scalar::ZERO);
+        assert_eq!(-Scalar::ONE, Scalar::MAX);
+        assert_eq!(-from_const(2), Scalar::MAX - Scalar::ONE);
+        test_neg_impl(parse_scalar(
+            "0x03674752fdab8efaa80c59f2a14e26dc01c3f8a2660c81cd6862b72bc606760b",
+        ));
+        test_neg_impl(parse_scalar(
+            "0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6",
+        ));
+        test_neg_impl(parse_scalar(
+            "0x5445e022a3c13a026ec2378170357420280e21d24f537bca42830d1bb5823236",
+        ));
+    }
+
+    #[test]
+    fn test_sub() {
+        let lhs =
+            parse_scalar("0x6447adc64b17816528ee763e0b64ce7ee546304e19dd71176e7b468d8c9a6e7b");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        assert_eq!(
+            lhs - rhs,
+            parse_scalar("0x35264695f12d2c6cefa453ccda4c1bc5051c7b8b648915cc889b9c7d7c162aa5")
+        );
+        assert_eq!(
+            lhs - &rhs,
+            parse_scalar("0x35264695f12d2c6cefa453ccda4c1bc5051c7b8b648915cc889b9c7d7c162aa5")
+        );
+    }
+
+    #[test]
+    fn test_sub_wraparound() {
+        let lhs =
+            parse_scalar("0x03674752fdab8efaa80c59f2a14e26dc01c3f8a2660c81cd6862b72bc606760b");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        assert_eq!(
+            lhs - rhs,
+            parse_scalar("0x5445e022a3c13a026ec2378170357420280e21d24f537bca42830d1bb5823236")
+        );
+        assert_eq!(
+            lhs - &rhs,
+            parse_scalar("0x5445e022a3c13a026ec2378170357420280e21d24f537bca42830d1bb5823236")
+        );
+    }
+
+    #[test]
+    fn test_sub_assign() {
+        let mut lhs =
+            parse_scalar("0x6447adc64b17816528ee763e0b64ce7ee546304e19dd71176e7b468d8c9a6e7b");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        lhs -= rhs;
+        assert_eq!(
+            lhs,
+            parse_scalar("0x35264695f12d2c6cefa453ccda4c1bc5051c7b8b648915cc889b9c7d7c162aa5")
+        );
+    }
+
+    #[test]
+    fn test_sub_assign_ref() {
+        let mut lhs =
+            parse_scalar("0x6447adc64b17816528ee763e0b64ce7ee546304e19dd71176e7b468d8c9a6e7b");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        lhs -= &rhs;
+        assert_eq!(
+            lhs,
+            parse_scalar("0x35264695f12d2c6cefa453ccda4c1bc5051c7b8b648915cc889b9c7d7c162aa5")
+        );
+    }
+
+    #[test]
+    fn test_sub_assign_wraparound() {
+        let mut lhs =
+            parse_scalar("0x03674752fdab8efaa80c59f2a14e26dc01c3f8a2660c81cd6862b72bc606760b");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        lhs -= rhs;
+        assert_eq!(
+            lhs,
+            parse_scalar("0x5445e022a3c13a026ec2378170357420280e21d24f537bca42830d1bb5823236")
+        );
+    }
+
+    #[test]
+    fn test_sub_assign_wraparound_ref() {
+        let mut lhs =
+            parse_scalar("0x03674752fdab8efaa80c59f2a14e26dc01c3f8a2660c81cd6862b72bc606760b");
+        let rhs =
+            parse_scalar("0x2f21673059ea54f8394a22713118b2b9e029b4c2b5545b4ae5dfaa10108443d6");
+        lhs -= &rhs;
+        assert_eq!(
+            lhs,
+            parse_scalar("0x5445e022a3c13a026ec2378170357420280e21d24f537bca42830d1bb5823236")
+        );
+    }
+
+    #[test]
+    fn test_mul_by_zero() {
+        assert_eq!(Scalar::ZERO * from_const(42), Scalar::ZERO);
+        assert_eq!(Scalar::ZERO * &from_const(42), Scalar::ZERO);
+        assert_eq!(Scalar::ZERO * from_const(43), Scalar::ZERO);
+        assert_eq!(Scalar::ZERO * &from_const(43), Scalar::ZERO);
+        assert_eq!(from_const(42) * Scalar::ZERO, Scalar::ZERO);
+        assert_eq!(from_const(42) * &Scalar::ZERO, Scalar::ZERO);
+        assert_eq!(from_const(43) * Scalar::ZERO, Scalar::ZERO);
+        assert_eq!(from_const(43) * &Scalar::ZERO, Scalar::ZERO);
+    }
+
+    #[test]
+    fn test_mul_by_one() {
+        assert_eq!(Scalar::ONE * from_const(42), from_const(42));
+        assert_eq!(Scalar::ONE * &from_const(42), from_const(42));
+        assert_eq!(Scalar::ONE * from_const(43), from_const(43));
+        assert_eq!(Scalar::ONE * &from_const(43), from_const(43));
+        assert_eq!(from_const(42) * Scalar::ONE, from_const(42));
+        assert_eq!(from_const(42) * &Scalar::ONE, from_const(42));
+        assert_eq!(from_const(43) * Scalar::ONE, from_const(43));
+        assert_eq!(from_const(43) * &Scalar::ONE, from_const(43));
+    }
+
+    #[test]
+    fn test_mul() {
+        assert_eq!(from_const(12) * from_const(34), from_const(408));
+        assert_eq!(from_const(12) * &from_const(34), from_const(408));
+        assert_eq!(from_const(12) * from_const(56), from_const(672));
+        assert_eq!(from_const(12) * &from_const(56), from_const(672));
+        assert_eq!(from_const(34) * from_const(12), from_const(408));
+        assert_eq!(from_const(34) * &from_const(12), from_const(408));
+        assert_eq!(from_const(56) * from_const(12), from_const(672));
+        assert_eq!(from_const(56) * &from_const(12), from_const(672));
+    }
+
+    fn test_mul_large_impl(v1: Scalar, v2: Scalar, v3: Scalar) {
+        assert_eq!(v1 * v2, v3);
+        assert_eq!(v1 * &v2, v3);
+        assert_eq!(v2 * v1, v3);
+        assert_eq!(v2 * &v1, v3);
+    }
+
+    #[test]
+    fn test_mul_large() {
+        test_mul_large_impl(
+            parse_scalar("0x1be5c79927a7c7c2c1057e99b51e26efc2bac5029c6322e20405fc9334c50a9f"),
+            parse_scalar("0x395ff9efcaa35d618872a95b7244c4b3b2a7e1d9276d4e88db27217993014628"),
+            parse_scalar("0x0f21dcbfb54f62dd8ed757a0a2938c831c5bea612fffa42237f8a0e269b67e02"),
+        );
+        test_mul_large_impl(
+            parse_scalar("0x233f7c593e331b2e1285f17013cd4b692d7219c10bf06adca229780913851577"),
+            parse_scalar("0x4433ff6315d939cda16f055756432036cab445af8186bc60b243127905b84c73"),
+            parse_scalar("0x6bb08da54b6c7a0760e3a845a73c45dd643d18fd594ddee7c1ab58c4af38310b"),
+        );
+    }
+
+    #[test]
+    fn test_div_by_one() {
+        assert_eq!(Scalar::ONE / from_const(42), from_const(42).invert_unwrap());
+        assert_eq!(
+            Scalar::ONE / &from_const(42),
+            from_const(42).invert_unwrap()
+        );
+        assert_eq!(Scalar::ONE / from_const(43), from_const(43).invert_unwrap());
+        assert_eq!(
+            Scalar::ONE / &from_const(43),
+            from_const(43).invert_unwrap()
+        );
+        assert_eq!(from_const(42) / Scalar::ONE, from_const(42));
+        assert_eq!(from_const(42) / &Scalar::ONE, from_const(42));
+        assert_eq!(from_const(43) / Scalar::ONE, from_const(43));
+        assert_eq!(from_const(43) / &Scalar::ONE, from_const(43));
+    }
+
+    #[test]
+    fn test_div() {
+        assert_eq!(from_const(408) / from_const(34), from_const(12));
+        assert_eq!(from_const(408) / &from_const(34), from_const(12));
+        assert_eq!(from_const(672) / from_const(56), from_const(12));
+        assert_eq!(from_const(672) / &from_const(56), from_const(12));
+        assert_eq!(from_const(408) / from_const(12), from_const(34));
+        assert_eq!(from_const(408) / &from_const(12), from_const(34));
+        assert_eq!(from_const(672) / from_const(12), from_const(56));
+        assert_eq!(from_const(672) / &from_const(12), from_const(56));
+    }
+
+    #[test]
+    fn test_sum_owned() {
+        let values = vec![Scalar::ONE, from_const(2), from_const(3)];
+        assert_eq!(values.into_iter().sum::<Scalar>(), from_const(6));
+    }
+
+    #[test]
+    fn test_sum_refs() {
+        let values = vec![Scalar::ONE, from_const(2), from_const(3)];
+        assert_eq!(values.iter().sum::<Scalar>(), from_const(6));
+    }
+
+    #[test]
+    fn test_sum_empty() {
+        let values: Vec<Scalar> = vec![];
+        assert_eq!(values.into_iter().sum::<Scalar>(), Scalar::ZERO);
+    }
+
+    #[test]
+    fn test_sum_empty_refs() {
+        let values: Vec<Scalar> = vec![];
+        assert_eq!(values.iter().sum::<Scalar>(), Scalar::ZERO);
+    }
+
+    #[test]
+    fn test_sum_single() {
+        let values = vec![from_const(42)];
+        assert_eq!(values.into_iter().sum::<Scalar>(), from_const(42));
+    }
+
+    #[test]
+    fn test_sum_wraps_modulo_p() {
+        let values = vec![Scalar::MAX, Scalar::ONE];
+        assert_eq!(values.into_iter().sum::<Scalar>(), Scalar::ZERO);
+    }
+
+    #[test]
+    fn test_product_owned() {
+        let values = vec![from_const(2), from_const(3), from_const(4)];
+        assert_eq!(values.into_iter().product::<Scalar>(), from_const(24));
+    }
+
+    #[test]
+    fn test_product_refs() {
+        let values = vec![from_const(2), from_const(3), from_const(4)];
+        assert_eq!(values.iter().product::<Scalar>(), from_const(24));
+    }
+
+    #[test]
+    fn test_product_empty() {
+        let values: Vec<Scalar> = vec![];
+        assert_eq!(values.into_iter().product::<Scalar>(), Scalar::ONE);
+    }
+
+    #[test]
+    fn test_product_empty_refs() {
+        let values: Vec<Scalar> = vec![];
+        assert_eq!(values.iter().product::<Scalar>(), Scalar::ONE);
+    }
+
+    #[test]
+    fn test_product_single() {
+        let values = vec![from_const(42)];
+        assert_eq!(values.into_iter().product::<Scalar>(), from_const(42));
+    }
+
+    #[test]
+    fn test_product_with_zero() {
+        let values = vec![from_const(5), Scalar::ZERO, from_const(7)];
+        assert_eq!(values.into_iter().product::<Scalar>(), Scalar::ZERO);
+    }
+
+    #[test]
+    fn test_product_with_one() {
+        let values = vec![Scalar::ONE, from_const(5), Scalar::ONE];
+        assert_eq!(values.into_iter().product::<Scalar>(), from_const(5));
+    }
+
     // TODO
 }
