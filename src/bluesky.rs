@@ -68,18 +68,18 @@ impl Scalar {
 
     /// R in raw form, ie. the four limbs of `2^256 mod p` in little-endian order.
     const R: Self = Self(
-        0xbfffffffffffffe5u64,
-        0xab970f33c00b568du64,
-        0xb296e2afc92ce69du64,
-        0x1968ac3835a4f8ddu64,
+        0x7ffffffffffffffeu64,
+        0xf318441ac2c95570u64,
+        0x0000000000000003u64,
+        0x0000000000000000u64,
     );
 
     /// R in Montgomery form, ie. R^2 mod p.
     const R2: Self = Self(
-        0x4333760f1eed1fbeu64,
-        0xa322c6f674c8858bu64,
-        0x4393385da60db4e3u64,
-        0x47d59d40e87e7a4du64,
+        0xbfffffffffffffe5u64,
+        0xab970f33c00b568du64,
+        0xb296e2afc92ce69du64,
+        0x1968ac3835a4f8ddu64,
     );
 
     const P: [u64; 4] = MODULUS;
@@ -992,6 +992,313 @@ mod tests {
             format!("{:#066x}", Scalar::MAX),
             format!("{:#066x}", Scalar::MODULUS.parse::<U256>().unwrap() - 1)
         );
+    }
+
+    #[test]
+    fn test_zero() {
+        assert_eq!(Scalar::ZERO, Scalar::zero());
+        assert_eq!(Scalar::ZERO, from_const(0));
+        assert_eq!(Scalar::ZERO + from_const(0), from_const(0));
+        assert_eq!(Scalar::ZERO + from_const(1), from_const(1));
+        assert_eq!(Scalar::ZERO + from_const(2), from_const(2));
+        assert_eq!(Scalar::ZERO + from_const(3), from_const(3));
+        assert_eq!(Scalar::ZERO * from_const(0), Scalar::ZERO);
+        assert_eq!(Scalar::ZERO * from_const(1), Scalar::ZERO);
+        assert_eq!(Scalar::ZERO * from_const(2), Scalar::ZERO);
+        assert_eq!(Scalar::ZERO * from_const(3), Scalar::ZERO);
+    }
+
+    #[test]
+    fn test_one() {
+        assert_eq!(Scalar::ONE, Scalar::R);
+        assert_eq!(Scalar::ONE, Scalar::one());
+        assert_eq!(Scalar::ONE, from_const(1));
+        assert_eq!(Scalar::ONE + from_const(0), from_const(1));
+        assert_eq!(Scalar::ONE + from_const(1), from_const(2));
+        assert_eq!(Scalar::ONE + from_const(2), from_const(3));
+        assert_eq!(Scalar::ONE + from_const(3), from_const(4));
+        assert_eq!(Scalar::ONE * from_const(0), from_const(0));
+        assert_eq!(Scalar::ONE * from_const(1), from_const(1));
+        assert_eq!(Scalar::ONE * from_const(2), from_const(2));
+        assert_eq!(Scalar::ONE * from_const(3), from_const(3));
+    }
+
+    #[test]
+    fn test_max() {
+        assert_eq!(Scalar::MAX, -Scalar::ONE);
+    }
+
+    #[test]
+    fn test_fmt_display() {
+        assert_eq!(
+            format!("{}", from_const(0)),
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        );
+        assert_eq!(
+            format!("{}", from_const(1)),
+            "0x0000000000000000000000000000000000000000000000000000000000000001"
+        );
+        assert_eq!(
+            format!("{}", from_const(2)),
+            "0x0000000000000000000000000000000000000000000000000000000000000002"
+        );
+        assert_eq!(
+            format!(
+                "{}",
+                parse_scalar("0x17386c7200968ccab11e0a32e9b8c520b89637cc9b71975efe17b59138fe9c7b")
+            ),
+            "0x17386c7200968ccab11e0a32e9b8c520b89637cc9b71975efe17b59138fe9c7b"
+        );
+        assert_eq!(
+            format!("{}", Scalar::MAX - Scalar::ONE),
+            "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547bfffffffffffffff"
+        );
+        assert_eq!(
+            format!("{}", Scalar::MAX),
+            "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000000"
+        );
+    }
+
+    #[test]
+    fn test_fmt_debug() {
+        assert_eq!(
+            format!("{:?}", from_const(0)),
+            "Scalar(0x0000000000000000000000000000000000000000000000000000000000000000)"
+        );
+        assert_eq!(
+            format!("{:?}", from_const(1)),
+            "Scalar(0x0000000000000000000000000000000000000000000000000000000000000001)"
+        );
+        assert_eq!(
+            format!("{:?}", from_const(2)),
+            "Scalar(0x0000000000000000000000000000000000000000000000000000000000000002)"
+        );
+        assert_eq!(
+            format!(
+                "{:?}",
+                parse_scalar("0x17386c7200968ccab11e0a32e9b8c520b89637cc9b71975efe17b59138fe9c7b")
+            ),
+            "Scalar(0x17386c7200968ccab11e0a32e9b8c520b89637cc9b71975efe17b59138fe9c7b)"
+        );
+        assert_eq!(
+            format!("{:?}", Scalar::MAX - Scalar::ONE),
+            "Scalar(0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547bfffffffffffffff)"
+        );
+        assert_eq!(
+            format!("{:?}", Scalar::MAX),
+            "Scalar(0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000000)"
+        );
+    }
+
+    #[test]
+    fn test_fmt_lower_hex() {
+        assert_eq!(format!("{:x}", from_const(0)), "0");
+        assert_eq!(format!("{:x}", from_const(1)), "1");
+        assert_eq!(format!("{:x}", from_const(0xdeadbeef)), "deadbeef");
+        assert_eq!(format!("{:#x}", from_const(0)), "0x0");
+        assert_eq!(format!("{:#x}", from_const(0xdeadbeef)), "0xdeadbeef");
+        assert_eq!(format!("{:10x}", from_const(0xdeadbeef)), "  deadbeef");
+        assert_eq!(format!("{:010x}", from_const(0xdeadbeef)), "00deadbeef");
+        assert_eq!(format!("{:#012x}", from_const(0xdeadbeef)), "0x00deadbeef");
+        assert_eq!(format!("{:<10x}", from_const(0xdeadbeef)), "deadbeef  ");
+        assert_eq!(format!("{:_<10x}", from_const(0xdeadbeef)), "deadbeef__");
+    }
+
+    #[test]
+    fn test_fmt_upper_hex() {
+        assert_eq!(format!("{:X}", from_const(0)), "0");
+        assert_eq!(format!("{:X}", from_const(0xdeadbeef)), "DEADBEEF");
+        assert_eq!(format!("{:#X}", from_const(0xdeadbeef)), "0xDEADBEEF");
+        assert_eq!(format!("{:010X}", from_const(0xdeadbeef)), "00DEADBEEF");
+        assert_eq!(format!("{:#012X}", from_const(0xdeadbeef)), "0x00DEADBEEF");
+        assert_eq!(format!("{:<10X}", from_const(0xdeadbeef)), "DEADBEEF  ");
+    }
+
+    #[test]
+    fn test_fmt_binary() {
+        assert_eq!(format!("{:b}", from_const(0)), "0");
+        assert_eq!(format!("{:b}", from_const(1)), "1");
+        assert_eq!(format!("{:b}", from_const(0b1010)), "1010");
+        assert_eq!(format!("{:#b}", from_const(0b1010)), "0b1010");
+        assert_eq!(format!("{:10b}", from_const(0b1010)), "      1010");
+        assert_eq!(format!("{:010b}", from_const(0b1010)), "0000001010");
+        assert_eq!(format!("{:#012b}", from_const(0b1010)), "0b0000001010");
+        assert_eq!(format!("{:<10b}", from_const(0b1010)), "1010      ");
+    }
+
+    #[test]
+    fn test_fmt_octal() {
+        assert_eq!(format!("{:o}", from_const(0)), "0");
+        assert_eq!(format!("{:o}", from_const(1)), "1");
+        assert_eq!(format!("{:o}", from_const(0o755)), "755");
+        assert_eq!(format!("{:#o}", from_const(0o755)), "0o755");
+        assert_eq!(format!("{:10o}", from_const(0o755)), "       755");
+        assert_eq!(format!("{:010o}", from_const(0o755)), "0000000755");
+        assert_eq!(format!("{:#012o}", from_const(0o755)), "0o0000000755");
+        assert_eq!(format!("{:<10o}", from_const(0o755)), "755       ");
+    }
+
+    #[test]
+    fn test_equality() {
+        assert!(from_const(0) == from_const(0));
+        assert!(from_const(0) != from_const(1));
+        assert!(from_const(0) != from_const(2));
+        assert!(from_const(0) != Scalar::MAX - Scalar::ONE);
+        assert!(from_const(0) != Scalar::MAX);
+        assert!(from_const(1) != from_const(0));
+        assert!(from_const(1) == from_const(1));
+        assert!(from_const(1) != from_const(2));
+        assert!(from_const(0) != Scalar::MAX - Scalar::ONE);
+        assert!(from_const(0) != Scalar::MAX);
+        assert!(from_const(2) != from_const(0));
+        assert!(from_const(2) != from_const(1));
+        assert!(from_const(2) == from_const(2));
+        assert!(from_const(0) != Scalar::MAX - Scalar::ONE);
+        assert!(from_const(0) != Scalar::MAX);
+        assert!(Scalar::MAX - Scalar::ONE != from_const(0));
+        assert!(Scalar::MAX - Scalar::ONE != from_const(1));
+        assert!(Scalar::MAX - Scalar::ONE != from_const(2));
+        assert!(Scalar::MAX - Scalar::ONE == Scalar::MAX - Scalar::ONE);
+        assert!(Scalar::MAX - Scalar::ONE != Scalar::MAX);
+        assert!(Scalar::MAX != from_const(0));
+        assert!(Scalar::MAX != from_const(1));
+        assert!(Scalar::MAX != from_const(2));
+        assert!(Scalar::MAX != Scalar::MAX - Scalar::ONE);
+        assert!(Scalar::MAX == Scalar::MAX);
+    }
+
+    #[test]
+    fn test_total_order() {
+        let v0 = from_const(0);
+        let v1 = from_const(1);
+        let v2 = from_const(42);
+        let v3 = parse_scalar("0x318c1df8459d125dc54e1fe487bf23e8430221b69660d8ca9427235713f24de1");
+        let v4 = Scalar::MAX - Scalar::ONE;
+        let v5 = Scalar::MAX;
+
+        assert_eq!(v0.cmp(&v0), Ordering::Equal);
+        assert_eq!(v0.cmp(&v1), Ordering::Less);
+        assert_eq!(v0.cmp(&v2), Ordering::Less);
+        assert_eq!(v0.cmp(&v3), Ordering::Less);
+        assert_eq!(v0.cmp(&v4), Ordering::Less);
+        assert_eq!(v0.cmp(&v5), Ordering::Less);
+
+        assert_eq!(v1.cmp(&v0), Ordering::Greater);
+        assert_eq!(v1.cmp(&v1), Ordering::Equal);
+        assert_eq!(v1.cmp(&v2), Ordering::Less);
+        assert_eq!(v1.cmp(&v3), Ordering::Less);
+        assert_eq!(v1.cmp(&v4), Ordering::Less);
+        assert_eq!(v1.cmp(&v5), Ordering::Less);
+
+        assert_eq!(v2.cmp(&v0), Ordering::Greater);
+        assert_eq!(v2.cmp(&v1), Ordering::Greater);
+        assert_eq!(v2.cmp(&v2), Ordering::Equal);
+        assert_eq!(v2.cmp(&v3), Ordering::Less);
+        assert_eq!(v2.cmp(&v4), Ordering::Less);
+        assert_eq!(v2.cmp(&v5), Ordering::Less);
+
+        assert_eq!(v3.cmp(&v0), Ordering::Greater);
+        assert_eq!(v3.cmp(&v1), Ordering::Greater);
+        assert_eq!(v3.cmp(&v2), Ordering::Greater);
+        assert_eq!(v3.cmp(&v3), Ordering::Equal);
+        assert_eq!(v3.cmp(&v4), Ordering::Less);
+        assert_eq!(v3.cmp(&v5), Ordering::Less);
+
+        assert_eq!(v4.cmp(&v0), Ordering::Greater);
+        assert_eq!(v4.cmp(&v1), Ordering::Greater);
+        assert_eq!(v4.cmp(&v2), Ordering::Greater);
+        assert_eq!(v4.cmp(&v3), Ordering::Greater);
+        assert_eq!(v4.cmp(&v4), Ordering::Equal);
+        assert_eq!(v4.cmp(&v5), Ordering::Less);
+
+        assert_eq!(v5.cmp(&v0), Ordering::Greater);
+        assert_eq!(v5.cmp(&v1), Ordering::Greater);
+        assert_eq!(v5.cmp(&v2), Ordering::Greater);
+        assert_eq!(v5.cmp(&v3), Ordering::Greater);
+        assert_eq!(v5.cmp(&v4), Ordering::Greater);
+        assert_eq!(v5.cmp(&v5), Ordering::Equal);
+    }
+
+    #[test]
+    fn test_ct_eq() {
+        let a = from_const(42);
+        let b = from_const(42);
+        let c = from_const(43);
+
+        assert_eq!(bool::from(a.ct_eq(&b)), true);
+        assert_eq!(bool::from(a.ct_eq(&a)), true);
+        assert_eq!(bool::from(a.ct_eq(&c)), false);
+        assert_eq!(bool::from(c.ct_eq(&a)), false);
+
+        assert_eq!(bool::from(Scalar::ZERO.ct_eq(&Scalar::ZERO)), true);
+        assert_eq!(bool::from(Scalar::ONE.ct_eq(&Scalar::ONE)), true);
+        assert_eq!(bool::from(Scalar::MAX.ct_eq(&Scalar::MAX)), true);
+        assert_eq!(bool::from(Scalar::ZERO.ct_eq(&Scalar::ONE)), false);
+        assert_eq!(bool::from(Scalar::ONE.ct_eq(&Scalar::MAX)), false);
+
+        let v1 = parse_scalar("0x318c1df8459d125dc54e1fe487bf23e8430221b69660d8ca9427235713f24de1");
+        let v2 = parse_scalar("0x318c1df8459d125dc54e1fe487bf23e8430221b69660d8ca9427235713f24de2");
+        assert_eq!(bool::from(v1.ct_eq(&v2)), false);
+        assert_eq!(bool::from(v1.ct_eq(&v1)), true);
+    }
+
+    #[test]
+    fn test_ct_gt() {
+        let v0 = from_const(0);
+        let v1 = from_const(1);
+        let v2 = from_const(42);
+        let v3 = Scalar::MAX - Scalar::ONE;
+        let v4 = Scalar::MAX;
+        assert_eq!(bool::from(v0.ct_gt(&v0)), false);
+        assert_eq!(bool::from(v1.ct_gt(&v1)), false);
+        assert_eq!(bool::from(v4.ct_gt(&v4)), false);
+        assert_eq!(bool::from(v1.ct_gt(&v0)), true);
+        assert_eq!(bool::from(v2.ct_gt(&v0)), true);
+        assert_eq!(bool::from(v2.ct_gt(&v1)), true);
+        assert_eq!(bool::from(v4.ct_gt(&v3)), true);
+        assert_eq!(bool::from(v4.ct_gt(&v0)), true);
+        assert_eq!(bool::from(v0.ct_gt(&v1)), false);
+        assert_eq!(bool::from(v0.ct_gt(&v4)), false);
+        assert_eq!(bool::from(v1.ct_gt(&v2)), false);
+        assert_eq!(bool::from(v3.ct_gt(&v4)), false);
+    }
+
+    #[test]
+    fn test_ct_lt() {
+        let v0 = from_const(0);
+        let v1 = from_const(1);
+        let v2 = from_const(42);
+        let v3 = Scalar::MAX - Scalar::ONE;
+        let v4 = Scalar::MAX;
+        assert_eq!(bool::from(v0.ct_lt(&v0)), false);
+        assert_eq!(bool::from(v1.ct_lt(&v1)), false);
+        assert_eq!(bool::from(v4.ct_lt(&v4)), false);
+        assert_eq!(bool::from(v0.ct_lt(&v1)), true);
+        assert_eq!(bool::from(v0.ct_lt(&v4)), true);
+        assert_eq!(bool::from(v1.ct_lt(&v2)), true);
+        assert_eq!(bool::from(v2.ct_lt(&v3)), true);
+        assert_eq!(bool::from(v3.ct_lt(&v4)), true);
+        assert_eq!(bool::from(v1.ct_lt(&v0)), false);
+        assert_eq!(bool::from(v4.ct_lt(&v3)), false);
+        assert_eq!(bool::from(v4.ct_lt(&v0)), false);
+    }
+
+    #[test]
+    fn test_conditional_select() {
+        let a = from_const(12);
+        let b = from_const(34);
+        assert_eq!(Scalar::conditional_select(&a, &b, Choice::from(0)), a);
+        assert_eq!(Scalar::conditional_select(&a, &b, Choice::from(1)), b);
+        assert_eq!(
+            Scalar::conditional_select(&Scalar::ZERO, &Scalar::ONE, Choice::from(0)),
+            Scalar::ZERO
+        );
+        assert_eq!(
+            Scalar::conditional_select(&Scalar::ZERO, &Scalar::ONE, Choice::from(1)),
+            Scalar::ONE
+        );
+        assert_eq!(Scalar::conditional_select(&a, &a, Choice::from(0)), a);
+        assert_eq!(Scalar::conditional_select(&a, &a, Choice::from(1)), a);
     }
 
     // TODO
