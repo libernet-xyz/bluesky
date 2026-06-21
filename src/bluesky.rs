@@ -1654,5 +1654,973 @@ mod tests {
         assert_eq!(values.into_iter().product::<Scalar>(), from_const(5));
     }
 
+    #[test]
+    fn test_from_u8() {
+        assert_eq!(Scalar::from(0u8), from_const(0));
+        assert_eq!(Scalar::from(1u8), from_const(1));
+        assert_eq!(Scalar::from(2u8), from_const(2));
+        assert_eq!(Scalar::from(u8::MAX - 1), from_const((u8::MAX - 1) as u64));
+        assert_eq!(Scalar::from(u8::MAX), from_const(u8::MAX as u64));
+    }
+
+    #[test]
+    fn test_from_u16() {
+        assert_eq!(Scalar::from(0u16), from_const(0));
+        assert_eq!(Scalar::from(1u16), from_const(1));
+        assert_eq!(Scalar::from(2u16), from_const(2));
+        assert_eq!(
+            Scalar::from(u16::MAX - 1),
+            from_const((u16::MAX - 1) as u64)
+        );
+        assert_eq!(Scalar::from(u16::MAX), from_const(u16::MAX as u64));
+    }
+
+    #[test]
+    fn test_from_u32() {
+        assert_eq!(Scalar::from(0u32), from_const(0));
+        assert_eq!(Scalar::from(1u32), from_const(1));
+        assert_eq!(Scalar::from(2u32), from_const(2));
+        assert_eq!(
+            Scalar::from(u32::MAX - 1),
+            from_const((u32::MAX - 1) as u64)
+        );
+        assert_eq!(Scalar::from(u32::MAX), from_const(u32::MAX as u64));
+    }
+
+    #[test]
+    fn test_from_u64() {
+        assert_eq!(Scalar::from(0u64), from_const(0));
+        assert_eq!(Scalar::from(1u64), from_const(1));
+        assert_eq!(Scalar::from(2u64), from_const(2));
+        assert_eq!(Scalar::from(u64::MAX - 1), from_const(u64::MAX - 1));
+        assert_eq!(Scalar::from(u64::MAX), from_const(u64::MAX));
+    }
+
+    #[test]
+    fn test_from_u128() {
+        assert_eq!(Scalar::from(0u128), from_const(0));
+        assert_eq!(Scalar::from(1u128), from_const(1));
+        assert_eq!(Scalar::from(2u128), from_const(2));
+        assert_eq!(
+            Scalar::from(u128::MAX - 1),
+            parse_scalar("0x00000000000000000000000000000000fffffffffffffffffffffffffffffffe")
+        );
+        assert_eq!(
+            Scalar::from(u128::MAX),
+            parse_scalar("0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff")
+        );
+    }
+
+    #[test]
+    fn test_try_from_u256() {
+        assert_eq!(
+            <Scalar as TryFrom<U256>>::try_from(0.into()).unwrap(),
+            from_const(0)
+        );
+        assert_eq!(
+            <Scalar as TryFrom<U256>>::try_from(1.into()).unwrap(),
+            from_const(1)
+        );
+        assert_eq!(
+            <Scalar as TryFrom<U256>>::try_from(2.into()).unwrap(),
+            from_const(2)
+        );
+        let modulus: U256 = Scalar::MODULUS.parse().unwrap();
+        assert_eq!(
+            <Scalar as TryFrom<U256>>::try_from(modulus - 2).unwrap(),
+            -from_const(2)
+        );
+        assert_eq!(
+            <Scalar as TryFrom<U256>>::try_from(modulus - 1).unwrap(),
+            -from_const(1)
+        );
+        assert!(<Scalar as TryFrom<U256>>::try_from(modulus).is_err());
+        assert!(<Scalar as TryFrom<U256>>::try_from(modulus + 1).is_err());
+    }
+
+    #[test]
+    fn test_is_zero() {
+        assert!(bool::from(from_const(0).is_zero()));
+        assert!(!bool::from(from_const(1).is_zero()));
+        assert!(!bool::from(from_const(2).is_zero()));
+        assert!(!bool::from((Scalar::MAX - Scalar::ONE).is_zero()));
+        assert!(!bool::from(Scalar::MAX.is_zero()));
+    }
+
+    #[test]
+    fn test_is_even() {
+        assert!(bool::from(from_const(0).is_even()));
+        assert!(!bool::from(from_const(1).is_even()));
+        assert!(bool::from(from_const(2).is_even()));
+        assert!(!bool::from(from_const(3).is_even()));
+        assert!(bool::from(from_const(100).is_even()));
+        assert!(!bool::from(from_const(101).is_even()));
+        assert!(!bool::from((Scalar::MAX - Scalar::ONE).is_even()));
+        assert!(bool::from(Scalar::MAX.is_even()));
+    }
+
+    #[test]
+    fn test_is_odd() {
+        assert!(!bool::from(from_const(0).is_odd()));
+        assert!(bool::from(from_const(1).is_odd()));
+        assert!(!bool::from(from_const(2).is_odd()));
+        assert!(bool::from(from_const(3).is_odd()));
+        assert!(!bool::from(from_const(100).is_odd()));
+        assert!(bool::from(from_const(101).is_odd()));
+        assert!(bool::from((Scalar::MAX - Scalar::ONE).is_odd()));
+        assert!(!bool::from(Scalar::MAX.is_odd()));
+    }
+
+    struct OsRng;
+
+    impl rand_core::TryRng for OsRng {
+        type Error = getrandom::Error;
+
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
+            getrandom::fill(dest)
+        }
+
+        fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+            let mut bytes = [0u8; 4];
+            getrandom::fill(&mut bytes)?;
+            Ok(u32::from_le_bytes(bytes))
+        }
+
+        fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+            let mut bytes = [0u8; 8];
+            getrandom::fill(&mut bytes)?;
+            Ok(u64::from_le_bytes(bytes))
+        }
+    }
+
+    impl rand_core::TryCryptoRng for OsRng {}
+
+    #[test]
+    fn test_try_random() {
+        let mut rng = OsRng;
+        assert_ne!(
+            Scalar::try_random(&mut rng).unwrap(),
+            Scalar::try_random(&mut rng).unwrap()
+        );
+        assert_ne!(
+            Scalar::try_random(&mut rng).unwrap(),
+            Scalar::try_random(&mut rng).unwrap()
+        );
+        assert_ne!(
+            Scalar::try_random(&mut rng).unwrap(),
+            Scalar::try_random(&mut rng).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_random() {
+        let mut rng = rand_core::UnwrapErr(OsRng);
+        assert_ne!(Scalar::random(&mut rng), Scalar::random(&mut rng));
+        assert_ne!(Scalar::random(&mut rng), Scalar::random(&mut rng));
+        assert_ne!(Scalar::random(&mut rng), Scalar::random(&mut rng));
+    }
+
+    #[test]
+    fn test_random_default() {
+        assert_ne!(Scalar::random_default(), Scalar::random_default());
+        assert_ne!(Scalar::random_default(), Scalar::random_default());
+        assert_ne!(Scalar::random_default(), Scalar::random_default());
+    }
+
+    #[test]
+    fn test_double() {
+        assert_eq!(from_const(0).double(), from_const(0));
+        assert_eq!(from_const(1).double(), from_const(2));
+        assert_eq!(from_const(2).double(), from_const(4));
+        assert_eq!((Scalar::MAX - from_const(2)).double(), -from_const(6));
+        assert_eq!((Scalar::MAX - from_const(1)).double(), -from_const(4));
+        assert_eq!((Scalar::MAX).double(), -from_const(2));
+    }
+
+    #[test]
+    fn test_square() {
+        assert_eq!(from_const(0).square(), from_const(0));
+        assert_eq!(from_const(1).square(), from_const(1));
+        assert_eq!(from_const(2).square(), from_const(4));
+        assert_eq!((Scalar::MAX - from_const(2)).square(), from_const(9));
+        assert_eq!((Scalar::MAX - from_const(1)).square(), from_const(4));
+        assert_eq!((Scalar::MAX).square(), from_const(1));
+    }
+
+    #[test]
+    fn test_cube() {
+        assert_eq!(from_const(0).cube(), from_const(0));
+        assert_eq!(from_const(1).cube(), from_const(1));
+        assert_eq!(from_const(2).cube(), from_const(8));
+        assert_eq!((Scalar::MAX - from_const(2)).cube(), -from_const(27));
+        assert_eq!((Scalar::MAX - from_const(1)).cube(), -from_const(8));
+        assert_eq!((Scalar::MAX).cube(), -from_const(1));
+    }
+
+    fn test_inversion_impl(value: Scalar) {
+        assert_ne!(value, Scalar::ZERO);
+        assert_eq!(value * value.invert().unwrap(), Scalar::ONE);
+        assert_eq!(value * value.invert_unwrap(), Scalar::ONE);
+        assert_eq!(value * value.invert_or_zero(), Scalar::ONE);
+        assert_eq!(value * value.invert_const_time().unwrap(), Scalar::ONE);
+    }
+
+    #[test]
+    fn test_inversion() {
+        assert!(from_const(0).invert().is_none());
+        assert_eq!(from_const(0).invert_or_zero(), Scalar::ZERO);
+        assert!(bool::from(from_const(0).invert_const_time().is_none()));
+        test_inversion_impl(1u64.into());
+        test_inversion_impl(2u64.into());
+        test_inversion_impl(42u64.into());
+        test_inversion_impl(Scalar::MAX);
+    }
+
+    #[test]
+    fn test_power() {
+        assert_eq!(from_const(0).pow(from_const(0)), from_const(1));
+        assert_eq!(from_const(0).pow(from_const(1)), from_const(0));
+        assert_eq!(from_const(0).pow(from_const(2)), from_const(0));
+        assert_eq!(from_const(1).pow(from_const(0)), from_const(1));
+        assert_eq!(from_const(1).pow(from_const(1)), from_const(1));
+        assert_eq!(from_const(1).pow(from_const(2)), from_const(1));
+        assert_eq!(from_const(2).pow(from_const(0)), from_const(1));
+        assert_eq!(from_const(2).pow(from_const(1)), from_const(2));
+        assert_eq!(from_const(2).pow(from_const(2)), from_const(4));
+        assert_eq!(from_const(2).pow(from_const(3)), from_const(8));
+    }
+
+    #[test]
+    fn test_small_power() {
+        assert_eq!(from_const(0).pow_small(0), from_const(1));
+        assert_eq!(from_const(0).pow_small(1), from_const(0));
+        assert_eq!(from_const(0).pow_small(2), from_const(0));
+        assert_eq!(from_const(1).pow_small(0), from_const(1));
+        assert_eq!(from_const(1).pow_small(1), from_const(1));
+        assert_eq!(from_const(1).pow_small(2), from_const(1));
+        assert_eq!(from_const(2).pow_small(0), from_const(1));
+        assert_eq!(from_const(2).pow_small(1), from_const(2));
+        assert_eq!(from_const(2).pow_small(2), from_const(4));
+        assert_eq!(from_const(2).pow_small(3), from_const(8));
+    }
+
+    #[test]
+    fn test_power_const_time() {
+        assert_eq!(from_const(0).pow_const_time(from_const(0)), from_const(1));
+        assert_eq!(from_const(0).pow_const_time(from_const(1)), from_const(0));
+        assert_eq!(from_const(0).pow_const_time(from_const(2)), from_const(0));
+        assert_eq!(from_const(1).pow_const_time(from_const(0)), from_const(1));
+        assert_eq!(from_const(1).pow_const_time(from_const(1)), from_const(1));
+        assert_eq!(from_const(1).pow_const_time(from_const(2)), from_const(1));
+        assert_eq!(from_const(2).pow_const_time(from_const(0)), from_const(1));
+        assert_eq!(from_const(2).pow_const_time(from_const(1)), from_const(2));
+        assert_eq!(from_const(2).pow_const_time(from_const(2)), from_const(4));
+        assert_eq!(from_const(2).pow_const_time(from_const(3)), from_const(8));
+    }
+
+    #[test]
+    fn test_small_power_const_time() {
+        assert_eq!(from_const(0).pow_small_const_time(0), from_const(1));
+        assert_eq!(from_const(0).pow_small_const_time(1), from_const(0));
+        assert_eq!(from_const(0).pow_small_const_time(2), from_const(0));
+        assert_eq!(from_const(1).pow_small_const_time(0), from_const(1));
+        assert_eq!(from_const(1).pow_small_const_time(1), from_const(1));
+        assert_eq!(from_const(1).pow_small_const_time(2), from_const(1));
+        assert_eq!(from_const(2).pow_small_const_time(0), from_const(1));
+        assert_eq!(from_const(2).pow_small_const_time(1), from_const(2));
+        assert_eq!(from_const(2).pow_small_const_time(2), from_const(4));
+        assert_eq!(from_const(2).pow_small_const_time(3), from_const(8));
+    }
+
+    #[test]
+    fn test_integer_division() {
+        assert!(from_const(13).div_int(&Scalar::ZERO).is_none());
+        assert_eq!(
+            from_const(13).div_int(&from_const(5)).unwrap(),
+            (from_const(2), from_const(3))
+        );
+        assert_eq!(
+            from_const(61).div_int(&from_const(7)).unwrap(),
+            (from_const(8), from_const(5))
+        );
+    }
+
+    #[test]
+    fn test_try_from_le_bytes() {
+        assert_eq!(
+            Scalar::try_from_le_bytes(&[
+                134, 217, 203, 162, 4, 73, 55, 251, 211, 179, 190, 229, 147, 65, 246, 233, 246, 34,
+                124, 231, 166, 122, 247, 92, 185, 41, 60, 53, 21, 52, 225, 38
+            ])
+            .unwrap(),
+            parse_scalar("0x26e13415353c29b95cf77aa6e77c22f6e9f64193e5beb3d3fb374904a2cbd986")
+        );
+        assert_eq!(
+            Scalar::try_from_le_bytes(&[
+                94, 15, 32, 74, 182, 189, 242, 78, 168, 143, 91, 154, 184, 98, 85, 163, 142, 220,
+                154, 67, 53, 216, 247, 158, 226, 97, 86, 13, 82, 137, 175, 54
+            ])
+            .unwrap(),
+            parse_scalar("0x36af89520d5661e29ef7d835439adc8ea35562b89a5b8fa84ef2bdb64a200f5e")
+        );
+    }
+
+    #[test]
+    fn test_try_from_be_bytes() {
+        assert_eq!(
+            Scalar::try_from_be_bytes(&[
+                79, 234, 193, 25, 67, 246, 138, 164, 3, 189, 35, 158, 1, 117, 190, 191, 241, 43,
+                207, 155, 72, 12, 169, 119, 131, 204, 73, 22, 224, 246, 241, 210
+            ])
+            .unwrap(),
+            parse_scalar("0x4feac11943f68aa403bd239e0175bebff12bcf9b480ca97783cc4916e0f6f1d2")
+        );
+        assert_eq!(
+            Scalar::try_from_be_bytes(&[
+                1, 116, 38, 26, 115, 42, 57, 217, 140, 177, 67, 128, 123, 20, 67, 224, 47, 204,
+                201, 64, 41, 58, 242, 162, 99, 50, 143, 217, 160, 22, 179, 45
+            ])
+            .unwrap(),
+            parse_scalar("0x0174261a732a39d98cb143807b1443e02fccc940293af2a263328fd9a016b32d")
+        );
+    }
+
+    #[test]
+    fn test_parse_binary() {
+        assert_eq!(Scalar::from_str_radix("0", 2).unwrap(), from_const(0));
+        assert_eq!(Scalar::from_str_radix("1", 2).unwrap(), from_const(1));
+        assert_eq!(Scalar::from_str_radix("00", 2).unwrap(), from_const(0));
+        assert_eq!(Scalar::from_str_radix("01", 2).unwrap(), from_const(1));
+        assert_eq!(Scalar::from_str_radix("10", 2).unwrap(), from_const(2));
+        assert_eq!(Scalar::from_str_radix("11", 2).unwrap(), from_const(3));
+        assert_eq!(
+            Scalar::from_str_radix("111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000000110011100111101110111110010100111101001101101010101010001111011111111111111111111111111111111111111111111111111111111111111", 2).unwrap(),
+            Scalar::MAX - Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_str_radix("111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000000110011100111101110111110010100111101001101101010101010001111100000000000000000000000000000000000000000000000000000000000000", 2).unwrap(),
+            Scalar::MAX
+        );
+        assert!(
+            Scalar::from_str_radix("111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000000110011100111101110111110010100111101001101101010101010001111100000000000000000000000000000000000000000000000000000000000001", 2).is_err(),
+        );
+    }
+
+    #[test]
+    fn test_print_binary() {
+        assert_eq!(from_const(0).to_str_radix(2, 0, false), "0");
+        assert_eq!(from_const(1).to_str_radix(2, 0, false), "1");
+        assert_eq!(from_const(2).to_str_radix(2, 0, false), "10");
+        assert_eq!(from_const(3).to_str_radix(2, 0, false), "11");
+        assert_eq!(from_const(0).to_str_radix(2, 1, false), "0");
+        assert_eq!(from_const(1).to_str_radix(2, 1, false), "1");
+        assert_eq!(from_const(2).to_str_radix(2, 1, false), "10");
+        assert_eq!(from_const(3).to_str_radix(2, 1, false), "11");
+        assert_eq!(from_const(0).to_str_radix(2, 2, false), "00");
+        assert_eq!(from_const(1).to_str_radix(2, 2, false), "01");
+        assert_eq!(from_const(2).to_str_radix(2, 2, false), "10");
+        assert_eq!(from_const(3).to_str_radix(2, 2, false), "11");
+        assert_eq!(from_const(0).to_str_radix(2, 3, false), "000");
+        assert_eq!(from_const(1).to_str_radix(2, 3, false), "001");
+        assert_eq!(from_const(2).to_str_radix(2, 3, false), "010");
+        assert_eq!(from_const(3).to_str_radix(2, 3, false), "011");
+        assert_eq!(
+            (Scalar::MAX - Scalar::ONE).to_str_radix(2, 0, false),
+            "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000000110011100111101110111110010100111101001101101010101010001111011111111111111111111111111111111111111111111111111111111111111"
+        );
+        assert_eq!(
+            Scalar::MAX.to_str_radix(2, 0, false),
+            "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000000110011100111101110111110010100111101001101101010101010001111100000000000000000000000000000000000000000000000000000000000000"
+        );
+    }
+
+    #[test]
+    fn test_parse_octal() {
+        assert_eq!(Scalar::from_str_radix("0", 8).unwrap(), from_const(0));
+        assert_eq!(Scalar::from_str_radix("1", 8).unwrap(), from_const(1));
+        assert_eq!(Scalar::from_str_radix("2", 8).unwrap(), from_const(2));
+        assert_eq!(Scalar::from_str_radix("6", 8).unwrap(), from_const(6));
+        assert_eq!(Scalar::from_str_radix("7", 8).unwrap(), from_const(7));
+        assert!(Scalar::from_str_radix("8", 8).is_err());
+        assert_eq!(Scalar::from_str_radix("00", 8).unwrap(), from_const(0));
+        assert_eq!(Scalar::from_str_radix("01", 8).unwrap(), from_const(1));
+        assert_eq!(Scalar::from_str_radix("02", 8).unwrap(), from_const(2));
+        assert_eq!(Scalar::from_str_radix("10", 8).unwrap(), from_const(8));
+        assert_eq!(Scalar::from_str_radix("11", 8).unwrap(), from_const(9));
+        assert_eq!(Scalar::from_str_radix("12", 8).unwrap(), from_const(10));
+        assert_eq!(Scalar::from_str_radix("20", 8).unwrap(), from_const(16));
+        assert_eq!(Scalar::from_str_radix("21", 8).unwrap(), from_const(17));
+        assert_eq!(Scalar::from_str_radix("22", 8).unwrap(), from_const(18));
+        assert_eq!(
+            Scalar::from_str_radix("7777777777777777777777777777777777777777770063475676247515525217377777777777777777777", 8).unwrap(),
+            Scalar::MAX - Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_str_radix("7777777777777777777777777777777777777777770063475676247515525217400000000000000000000", 8).unwrap(),
+            Scalar::MAX
+        );
+        assert!(
+            Scalar::from_str_radix("7777777777777777777777777777777777777777770063475676247515525217400000000000000000001", 8).is_err(),
+        );
+    }
+
+    #[test]
+    fn test_print_octal() {
+        assert_eq!(from_const(0).to_str_radix(8, 0, false), "0");
+        assert_eq!(from_const(1).to_str_radix(8, 0, false), "1");
+        assert_eq!(from_const(2).to_str_radix(8, 0, false), "2");
+        assert_eq!(from_const(6).to_str_radix(8, 0, false), "6");
+        assert_eq!(from_const(7).to_str_radix(8, 0, false), "7");
+        assert_eq!(from_const(8).to_str_radix(8, 0, false), "10");
+        assert_eq!(from_const(9).to_str_radix(8, 0, false), "11");
+        assert_eq!(from_const(10).to_str_radix(8, 0, false), "12");
+        assert_eq!(from_const(0).to_str_radix(8, 1, false), "0");
+        assert_eq!(from_const(1).to_str_radix(8, 1, false), "1");
+        assert_eq!(from_const(2).to_str_radix(8, 1, false), "2");
+        assert_eq!(from_const(6).to_str_radix(8, 1, false), "6");
+        assert_eq!(from_const(7).to_str_radix(8, 1, false), "7");
+        assert_eq!(from_const(8).to_str_radix(8, 1, false), "10");
+        assert_eq!(from_const(9).to_str_radix(8, 1, false), "11");
+        assert_eq!(from_const(10).to_str_radix(8, 1, false), "12");
+        assert_eq!(from_const(0).to_str_radix(8, 2, false), "00");
+        assert_eq!(from_const(1).to_str_radix(8, 2, false), "01");
+        assert_eq!(from_const(2).to_str_radix(8, 2, false), "02");
+        assert_eq!(from_const(6).to_str_radix(8, 2, false), "06");
+        assert_eq!(from_const(7).to_str_radix(8, 2, false), "07");
+        assert_eq!(from_const(8).to_str_radix(8, 2, false), "10");
+        assert_eq!(from_const(9).to_str_radix(8, 2, false), "11");
+        assert_eq!(from_const(10).to_str_radix(8, 2, false), "12");
+        assert_eq!(from_const(0).to_str_radix(8, 3, false), "000");
+        assert_eq!(from_const(1).to_str_radix(8, 3, false), "001");
+        assert_eq!(from_const(2).to_str_radix(8, 3, false), "002");
+        assert_eq!(from_const(6).to_str_radix(8, 3, false), "006");
+        assert_eq!(from_const(7).to_str_radix(8, 3, false), "007");
+        assert_eq!(from_const(8).to_str_radix(8, 3, false), "010");
+        assert_eq!(from_const(9).to_str_radix(8, 3, false), "011");
+        assert_eq!(from_const(10).to_str_radix(8, 3, false), "012");
+        assert_eq!(
+            (Scalar::MAX - Scalar::ONE).to_str_radix(8, 0, false),
+            "7777777777777777777777777777777777777777770063475676247515525217377777777777777777777"
+        );
+        assert_eq!(
+            Scalar::MAX.to_str_radix(8, 0, false),
+            "7777777777777777777777777777777777777777770063475676247515525217400000000000000000000"
+        );
+    }
+
+    #[test]
+    fn test_parse_decimal() {
+        assert_eq!(Scalar::from_str_radix("0", 10).unwrap(), from_const(0));
+        assert_eq!(Scalar::from_str_radix("1", 10).unwrap(), from_const(1));
+        assert_eq!(Scalar::from_str_radix("2", 10).unwrap(), from_const(2));
+        assert_eq!(Scalar::from_str_radix("00", 10).unwrap(), from_const(0));
+        assert_eq!(Scalar::from_str_radix("01", 10).unwrap(), from_const(1));
+        assert_eq!(Scalar::from_str_radix("02", 10).unwrap(), from_const(2));
+        assert_eq!(Scalar::from_str_radix("10", 10).unwrap(), from_const(10));
+        assert_eq!(Scalar::from_str_radix("11", 10).unwrap(), from_const(11));
+        assert_eq!(Scalar::from_str_radix("12", 10).unwrap(), from_const(12));
+        assert_eq!(Scalar::from_str_radix("20", 10).unwrap(), from_const(20));
+        assert_eq!(Scalar::from_str_radix("21", 10).unwrap(), from_const(21));
+        assert_eq!(Scalar::from_str_radix("22", 10).unwrap(), from_const(22));
+        assert_eq!(
+            Scalar::from_str_radix(
+                "57896044618658097711785492504343953925963004582726670246466397748101839323135",
+                10
+            )
+            .unwrap(),
+            Scalar::MAX - Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_str_radix(
+                "57896044618658097711785492504343953925963004582726670246466397748101839323136",
+                10
+            )
+            .unwrap(),
+            Scalar::MAX
+        );
+        assert!(
+            Scalar::from_str_radix(
+                "57896044618658097711785492504343953925963004582726670246466397748101839323137",
+                10
+            )
+            .is_err(),
+        );
+    }
+
+    #[test]
+    fn test_print_decimal() {
+        assert_eq!(from_const(0).to_str_radix(10, 0, false), "0");
+        assert_eq!(from_const(1).to_str_radix(10, 0, false), "1");
+        assert_eq!(from_const(2).to_str_radix(10, 0, false), "2");
+        assert_eq!(from_const(9).to_str_radix(10, 0, false), "9");
+        assert_eq!(from_const(10).to_str_radix(10, 0, false), "10");
+        assert_eq!(from_const(11).to_str_radix(10, 0, false), "11");
+        assert_eq!(from_const(0).to_str_radix(10, 1, false), "0");
+        assert_eq!(from_const(1).to_str_radix(10, 1, false), "1");
+        assert_eq!(from_const(2).to_str_radix(10, 1, false), "2");
+        assert_eq!(from_const(9).to_str_radix(10, 1, false), "9");
+        assert_eq!(from_const(10).to_str_radix(10, 1, false), "10");
+        assert_eq!(from_const(11).to_str_radix(10, 1, false), "11");
+        assert_eq!(from_const(0).to_str_radix(10, 2, false), "00");
+        assert_eq!(from_const(1).to_str_radix(10, 2, false), "01");
+        assert_eq!(from_const(2).to_str_radix(10, 2, false), "02");
+        assert_eq!(from_const(9).to_str_radix(10, 2, false), "09");
+        assert_eq!(from_const(10).to_str_radix(10, 2, false), "10");
+        assert_eq!(from_const(11).to_str_radix(10, 2, false), "11");
+        assert_eq!(from_const(0).to_str_radix(10, 3, false), "000");
+        assert_eq!(from_const(1).to_str_radix(10, 3, false), "001");
+        assert_eq!(from_const(2).to_str_radix(10, 3, false), "002");
+        assert_eq!(from_const(9).to_str_radix(10, 3, false), "009");
+        assert_eq!(from_const(10).to_str_radix(10, 3, false), "010");
+        assert_eq!(from_const(11).to_str_radix(10, 3, false), "011");
+        assert_eq!(
+            (Scalar::MAX - Scalar::ONE).to_str_radix(10, 0, false),
+            "57896044618658097711785492504343953925963004582726670246466397748101839323135"
+        );
+        assert_eq!(
+            Scalar::MAX.to_str_radix(10, 0, false),
+            "57896044618658097711785492504343953925963004582726670246466397748101839323136"
+        );
+    }
+
+    #[test]
+    fn test_parse_hexadecimal_lower_case() {
+        assert_eq!(Scalar::from_str_radix("0", 16).unwrap(), from_const(0));
+        assert_eq!(Scalar::from_str_radix("1", 16).unwrap(), from_const(1));
+        assert_eq!(Scalar::from_str_radix("2", 16).unwrap(), from_const(2));
+        assert_eq!(Scalar::from_str_radix("9", 16).unwrap(), from_const(9));
+        assert_eq!(Scalar::from_str_radix("a", 16).unwrap(), from_const(10));
+        assert_eq!(Scalar::from_str_radix("e", 16).unwrap(), from_const(14));
+        assert_eq!(Scalar::from_str_radix("f", 16).unwrap(), from_const(15));
+        assert!(Scalar::from_str_radix("8", 8).is_err());
+        assert_eq!(Scalar::from_str_radix("00", 16).unwrap(), from_const(0));
+        assert_eq!(Scalar::from_str_radix("01", 16).unwrap(), from_const(1));
+        assert_eq!(Scalar::from_str_radix("02", 16).unwrap(), from_const(2));
+        assert_eq!(Scalar::from_str_radix("09", 16).unwrap(), from_const(9));
+        assert_eq!(Scalar::from_str_radix("0a", 16).unwrap(), from_const(10));
+        assert_eq!(Scalar::from_str_radix("0e", 16).unwrap(), from_const(14));
+        assert_eq!(Scalar::from_str_radix("0f", 16).unwrap(), from_const(15));
+        assert_eq!(Scalar::from_str_radix("10", 16).unwrap(), from_const(16));
+        assert_eq!(Scalar::from_str_radix("11", 16).unwrap(), from_const(17));
+        assert_eq!(Scalar::from_str_radix("12", 16).unwrap(), from_const(18));
+        assert_eq!(Scalar::from_str_radix("19", 16).unwrap(), from_const(25));
+        assert_eq!(Scalar::from_str_radix("1a", 16).unwrap(), from_const(26));
+        assert_eq!(Scalar::from_str_radix("1e", 16).unwrap(), from_const(30));
+        assert_eq!(Scalar::from_str_radix("1f", 16).unwrap(), from_const(31));
+        assert_eq!(Scalar::from_str_radix("20", 16).unwrap(), from_const(32));
+        assert_eq!(Scalar::from_str_radix("21", 16).unwrap(), from_const(33));
+        assert_eq!(Scalar::from_str_radix("22", 16).unwrap(), from_const(34));
+        assert_eq!(
+            Scalar::from_str_radix(
+                "7ffffffffffffffffffffffffffffffe0673ddf29e9b5547bfffffffffffffff",
+                16
+            )
+            .unwrap(),
+            Scalar::MAX - Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_str_radix(
+                "7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000000",
+                16
+            )
+            .unwrap(),
+            Scalar::MAX
+        );
+        assert!(
+            Scalar::from_str_radix(
+                "7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000001",
+                16
+            )
+            .is_err(),
+        );
+    }
+
+    #[test]
+    fn test_print_hexadecimal_lower_case() {
+        assert_eq!(from_const(0).to_str_radix(16, 0, false), "0");
+        assert_eq!(from_const(1).to_str_radix(16, 0, false), "1");
+        assert_eq!(from_const(2).to_str_radix(16, 0, false), "2");
+        assert_eq!(from_const(9).to_str_radix(16, 0, false), "9");
+        assert_eq!(from_const(10).to_str_radix(16, 0, false), "a");
+        assert_eq!(from_const(14).to_str_radix(16, 0, false), "e");
+        assert_eq!(from_const(15).to_str_radix(16, 0, false), "f");
+        assert_eq!(from_const(16).to_str_radix(16, 0, false), "10");
+        assert_eq!(from_const(17).to_str_radix(16, 0, false), "11");
+        assert_eq!(from_const(18).to_str_radix(16, 0, false), "12");
+        assert_eq!(from_const(25).to_str_radix(16, 0, false), "19");
+        assert_eq!(from_const(26).to_str_radix(16, 0, false), "1a");
+        assert_eq!(from_const(30).to_str_radix(16, 0, false), "1e");
+        assert_eq!(from_const(31).to_str_radix(16, 0, false), "1f");
+        assert_eq!(from_const(0).to_str_radix(16, 1, false), "0");
+        assert_eq!(from_const(1).to_str_radix(16, 1, false), "1");
+        assert_eq!(from_const(2).to_str_radix(16, 1, false), "2");
+        assert_eq!(from_const(9).to_str_radix(16, 1, false), "9");
+        assert_eq!(from_const(10).to_str_radix(16, 1, false), "a");
+        assert_eq!(from_const(14).to_str_radix(16, 1, false), "e");
+        assert_eq!(from_const(15).to_str_radix(16, 1, false), "f");
+        assert_eq!(from_const(16).to_str_radix(16, 1, false), "10");
+        assert_eq!(from_const(17).to_str_radix(16, 1, false), "11");
+        assert_eq!(from_const(18).to_str_radix(16, 1, false), "12");
+        assert_eq!(from_const(25).to_str_radix(16, 1, false), "19");
+        assert_eq!(from_const(26).to_str_radix(16, 1, false), "1a");
+        assert_eq!(from_const(30).to_str_radix(16, 1, false), "1e");
+        assert_eq!(from_const(31).to_str_radix(16, 1, false), "1f");
+        assert_eq!(from_const(0).to_str_radix(16, 2, false), "00");
+        assert_eq!(from_const(1).to_str_radix(16, 2, false), "01");
+        assert_eq!(from_const(2).to_str_radix(16, 2, false), "02");
+        assert_eq!(from_const(9).to_str_radix(16, 2, false), "09");
+        assert_eq!(from_const(10).to_str_radix(16, 2, false), "0a");
+        assert_eq!(from_const(14).to_str_radix(16, 2, false), "0e");
+        assert_eq!(from_const(15).to_str_radix(16, 2, false), "0f");
+        assert_eq!(from_const(16).to_str_radix(16, 2, false), "10");
+        assert_eq!(from_const(17).to_str_radix(16, 2, false), "11");
+        assert_eq!(from_const(18).to_str_radix(16, 2, false), "12");
+        assert_eq!(from_const(25).to_str_radix(16, 2, false), "19");
+        assert_eq!(from_const(26).to_str_radix(16, 2, false), "1a");
+        assert_eq!(from_const(30).to_str_radix(16, 2, false), "1e");
+        assert_eq!(from_const(31).to_str_radix(16, 2, false), "1f");
+        assert_eq!(
+            (Scalar::MAX - Scalar::ONE).to_str_radix(16, 0, false),
+            "7ffffffffffffffffffffffffffffffe0673ddf29e9b5547bfffffffffffffff"
+        );
+        assert_eq!(
+            Scalar::MAX.to_str_radix(16, 0, false),
+            "7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000000"
+        );
+    }
+
+    #[test]
+    fn test_parse_hexadecimal_upper_case() {
+        assert_eq!(Scalar::from_str_radix("0", 16).unwrap(), from_const(0));
+        assert_eq!(Scalar::from_str_radix("1", 16).unwrap(), from_const(1));
+        assert_eq!(Scalar::from_str_radix("2", 16).unwrap(), from_const(2));
+        assert_eq!(Scalar::from_str_radix("9", 16).unwrap(), from_const(9));
+        assert_eq!(Scalar::from_str_radix("a", 16).unwrap(), from_const(10));
+        assert_eq!(Scalar::from_str_radix("e", 16).unwrap(), from_const(14));
+        assert_eq!(Scalar::from_str_radix("f", 16).unwrap(), from_const(15));
+        assert!(Scalar::from_str_radix("8", 8).is_err());
+        assert_eq!(Scalar::from_str_radix("00", 16).unwrap(), from_const(0));
+        assert_eq!(Scalar::from_str_radix("01", 16).unwrap(), from_const(1));
+        assert_eq!(Scalar::from_str_radix("02", 16).unwrap(), from_const(2));
+        assert_eq!(Scalar::from_str_radix("09", 16).unwrap(), from_const(9));
+        assert_eq!(Scalar::from_str_radix("0a", 16).unwrap(), from_const(10));
+        assert_eq!(Scalar::from_str_radix("0e", 16).unwrap(), from_const(14));
+        assert_eq!(Scalar::from_str_radix("0f", 16).unwrap(), from_const(15));
+        assert_eq!(Scalar::from_str_radix("10", 16).unwrap(), from_const(16));
+        assert_eq!(Scalar::from_str_radix("11", 16).unwrap(), from_const(17));
+        assert_eq!(Scalar::from_str_radix("12", 16).unwrap(), from_const(18));
+        assert_eq!(Scalar::from_str_radix("19", 16).unwrap(), from_const(25));
+        assert_eq!(Scalar::from_str_radix("1a", 16).unwrap(), from_const(26));
+        assert_eq!(Scalar::from_str_radix("1e", 16).unwrap(), from_const(30));
+        assert_eq!(Scalar::from_str_radix("1f", 16).unwrap(), from_const(31));
+        assert_eq!(Scalar::from_str_radix("20", 16).unwrap(), from_const(32));
+        assert_eq!(Scalar::from_str_radix("21", 16).unwrap(), from_const(33));
+        assert_eq!(Scalar::from_str_radix("22", 16).unwrap(), from_const(34));
+        assert_eq!(
+            Scalar::from_str_radix(
+                "7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE0673DDF29E9B5547BFFFFFFFFFFFFFFF",
+                16
+            )
+            .unwrap(),
+            Scalar::MAX - Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_str_radix(
+                "7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE0673DDF29E9B5547C000000000000000",
+                16
+            )
+            .unwrap(),
+            Scalar::MAX
+        );
+        assert!(
+            Scalar::from_str_radix(
+                "7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE0673DDF29E9B5547C000000000000001",
+                16
+            )
+            .is_err(),
+        );
+    }
+
+    #[test]
+    fn test_print_hexadecimal_upper_case() {
+        assert_eq!(from_const(0).to_str_radix(16, 0, true), "0");
+        assert_eq!(from_const(1).to_str_radix(16, 0, true), "1");
+        assert_eq!(from_const(2).to_str_radix(16, 0, true), "2");
+        assert_eq!(from_const(9).to_str_radix(16, 0, true), "9");
+        assert_eq!(from_const(10).to_str_radix(16, 0, true), "A");
+        assert_eq!(from_const(14).to_str_radix(16, 0, true), "E");
+        assert_eq!(from_const(15).to_str_radix(16, 0, true), "F");
+        assert_eq!(from_const(16).to_str_radix(16, 0, true), "10");
+        assert_eq!(from_const(17).to_str_radix(16, 0, true), "11");
+        assert_eq!(from_const(18).to_str_radix(16, 0, true), "12");
+        assert_eq!(from_const(25).to_str_radix(16, 0, true), "19");
+        assert_eq!(from_const(26).to_str_radix(16, 0, true), "1A");
+        assert_eq!(from_const(30).to_str_radix(16, 0, true), "1E");
+        assert_eq!(from_const(31).to_str_radix(16, 0, true), "1F");
+        assert_eq!(from_const(0).to_str_radix(16, 1, true), "0");
+        assert_eq!(from_const(1).to_str_radix(16, 1, true), "1");
+        assert_eq!(from_const(2).to_str_radix(16, 1, true), "2");
+        assert_eq!(from_const(9).to_str_radix(16, 1, true), "9");
+        assert_eq!(from_const(10).to_str_radix(16, 1, true), "A");
+        assert_eq!(from_const(14).to_str_radix(16, 1, true), "E");
+        assert_eq!(from_const(15).to_str_radix(16, 1, true), "F");
+        assert_eq!(from_const(16).to_str_radix(16, 1, true), "10");
+        assert_eq!(from_const(17).to_str_radix(16, 1, true), "11");
+        assert_eq!(from_const(18).to_str_radix(16, 1, true), "12");
+        assert_eq!(from_const(25).to_str_radix(16, 1, true), "19");
+        assert_eq!(from_const(26).to_str_radix(16, 1, true), "1A");
+        assert_eq!(from_const(30).to_str_radix(16, 1, true), "1E");
+        assert_eq!(from_const(31).to_str_radix(16, 1, true), "1F");
+        assert_eq!(from_const(0).to_str_radix(16, 2, true), "00");
+        assert_eq!(from_const(1).to_str_radix(16, 2, true), "01");
+        assert_eq!(from_const(2).to_str_radix(16, 2, true), "02");
+        assert_eq!(from_const(9).to_str_radix(16, 2, true), "09");
+        assert_eq!(from_const(10).to_str_radix(16, 2, true), "0A");
+        assert_eq!(from_const(14).to_str_radix(16, 2, true), "0E");
+        assert_eq!(from_const(15).to_str_radix(16, 2, true), "0F");
+        assert_eq!(from_const(16).to_str_radix(16, 2, true), "10");
+        assert_eq!(from_const(17).to_str_radix(16, 2, true), "11");
+        assert_eq!(from_const(18).to_str_radix(16, 2, true), "12");
+        assert_eq!(from_const(25).to_str_radix(16, 2, true), "19");
+        assert_eq!(from_const(26).to_str_radix(16, 2, true), "1A");
+        assert_eq!(from_const(30).to_str_radix(16, 2, true), "1E");
+        assert_eq!(from_const(31).to_str_radix(16, 2, true), "1F");
+        assert_eq!(
+            (Scalar::MAX - Scalar::ONE).to_str_radix(16, 0, true),
+            "7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE0673DDF29E9B5547BFFFFFFFFFFFFFFF"
+        );
+        assert_eq!(
+            Scalar::MAX.to_str_radix(16, 0, true),
+            "7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE0673DDF29E9B5547C000000000000000"
+        );
+    }
+
+    #[test]
+    fn test_try_to_u8() {
+        assert_eq!(from_const(0).try_to_u8().unwrap(), 0);
+        assert_eq!(from_const(1).try_to_u8().unwrap(), 1);
+        assert_eq!(from_const(2).try_to_u8().unwrap(), 2);
+        assert_eq!(
+            from_const(u8::MAX as u64 - 1).try_to_u8().unwrap(),
+            u8::MAX - 1
+        );
+        assert_eq!(from_const(u8::MAX as u64).try_to_u8().unwrap(), u8::MAX);
+        assert!(from_const(u8::MAX as u64 + 1).try_to_u8().is_none());
+        assert!(from_const(u8::MAX as u64 + 2).try_to_u8().is_none());
+    }
+
+    #[test]
+    fn test_try_to_u16() {
+        assert_eq!(from_const(0).try_to_u16().unwrap(), 0);
+        assert_eq!(from_const(1).try_to_u16().unwrap(), 1);
+        assert_eq!(from_const(2).try_to_u16().unwrap(), 2);
+        assert_eq!(
+            from_const(u16::MAX as u64 - 1).try_to_u16().unwrap(),
+            u16::MAX - 1
+        );
+        assert_eq!(from_const(u16::MAX as u64).try_to_u16().unwrap(), u16::MAX);
+        assert!(from_const(u16::MAX as u64 + 1).try_to_u16().is_none());
+        assert!(from_const(u16::MAX as u64 + 2).try_to_u16().is_none());
+    }
+
+    #[test]
+    fn test_to_le_bytes() {
+        assert_eq!(
+            parse_scalar("0x1caa16ab866063ef3c466732ba591aa9d6b3e7746611979e0219767cfa80fa45")
+                .to_le_bytes(),
+            [
+                69, 250, 128, 250, 124, 118, 25, 2, 158, 151, 17, 102, 116, 231, 179, 214, 169, 26,
+                89, 186, 50, 103, 70, 60, 239, 99, 96, 134, 171, 22, 170, 28
+            ]
+        );
+        assert_eq!(
+            parse_scalar("0x645752786f39a23dacbc0c9ff11eead2a96d50b51f4b9519be77e4640668292f")
+                .to_le_bytes(),
+            [
+                47, 41, 104, 6, 100, 228, 119, 190, 25, 149, 75, 31, 181, 80, 109, 169, 210, 234,
+                30, 241, 159, 12, 188, 172, 61, 162, 57, 111, 120, 82, 87, 100
+            ]
+        );
+    }
+
+    #[test]
+    fn test_to_be_bytes() {
+        assert_eq!(
+            parse_scalar("0x376d20d4a3fbc47ab59ecfb4f465eef303180ff9b9ed675492bed81f081d3da9")
+                .to_be_bytes(),
+            [
+                55, 109, 32, 212, 163, 251, 196, 122, 181, 158, 207, 180, 244, 101, 238, 243, 3,
+                24, 15, 249, 185, 237, 103, 84, 146, 190, 216, 31, 8, 29, 61, 169
+            ]
+        );
+        assert_eq!(
+            parse_scalar("0x249a87c2d46034a2111064344be35f69e21900a68d30b2e54a3e4e7145adeefa")
+                .to_be_bytes(),
+            [
+                36, 154, 135, 194, 212, 96, 52, 162, 17, 16, 100, 52, 75, 227, 95, 105, 226, 25, 0,
+                166, 141, 48, 178, 229, 74, 62, 78, 113, 69, 173, 238, 250
+            ]
+        );
+    }
+
+    #[test]
+    fn test_from_u512_mod_n() {
+        assert_eq!(Scalar::from_u512_mod_n("0".parse().unwrap()), from_const(0));
+        assert_eq!(Scalar::from_u512_mod_n("1".parse().unwrap()), from_const(1));
+        assert_eq!(Scalar::from_u512_mod_n("2".parse().unwrap()), from_const(2));
+        assert_eq!(
+            Scalar::from_u512_mod_n(
+                "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547bfffffffffffffff"
+                    .parse()
+                    .unwrap()
+            ),
+            Scalar::MAX - Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_u512_mod_n(
+                "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000000"
+                    .parse()
+                    .unwrap()
+            ),
+            Scalar::MAX
+        );
+        assert_eq!(
+            Scalar::from_u512_mod_n(
+                "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000001"
+                    .parse()
+                    .unwrap()
+            ),
+            from_const(0)
+        );
+        assert_eq!(
+            Scalar::from_u512_mod_n(
+                "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000002"
+                    .parse()
+                    .unwrap()
+            ),
+            from_const(1)
+        );
+    }
+
+    #[test]
+    fn test_try_to_u32() {
+        assert_eq!(from_const(0).try_to_u32().unwrap(), 0);
+        assert_eq!(from_const(1).try_to_u32().unwrap(), 1);
+        assert_eq!(from_const(2).try_to_u32().unwrap(), 2);
+        assert_eq!(
+            from_const(u32::MAX as u64 - 1).try_to_u32().unwrap(),
+            u32::MAX - 1
+        );
+        assert_eq!(from_const(u32::MAX as u64).try_to_u32().unwrap(), u32::MAX);
+        assert!(from_const(u32::MAX as u64 + 1).try_to_u32().is_none());
+        assert!(from_const(u32::MAX as u64 + 2).try_to_u32().is_none());
+    }
+
+    #[test]
+    fn test_try_to_u64() {
+        assert_eq!(from_const(0).try_to_u64().unwrap(), 0);
+        assert_eq!(from_const(1).try_to_u64().unwrap(), 1);
+        assert_eq!(from_const(2).try_to_u64().unwrap(), 2);
+        assert_eq!(from_const(u64::MAX - 1).try_to_u64().unwrap(), u64::MAX - 1);
+        assert_eq!(from_const(u64::MAX).try_to_u64().unwrap(), u64::MAX);
+        assert_eq!(
+            parse_scalar("0xffffffffffffffff").try_to_u64().unwrap(),
+            u64::MAX
+        );
+        assert!(parse_scalar("0x10000000000000000").try_to_u64().is_none());
+        assert!(parse_scalar("0x10000000000000001").try_to_u64().is_none());
+    }
+
+    #[test]
+    fn test_try_to_u128() {
+        assert_eq!(from_const(0).try_to_u128().unwrap(), 0);
+        assert_eq!(from_const(1).try_to_u128().unwrap(), 1);
+        assert_eq!(from_const(2).try_to_u128().unwrap(), 2);
+        assert_eq!(
+            parse_scalar("0xfffffffffffffffffffffffffffffffe")
+                .try_to_u128()
+                .unwrap(),
+            u128::MAX - 1
+        );
+        assert_eq!(
+            parse_scalar("0xffffffffffffffffffffffffffffffff")
+                .try_to_u128()
+                .unwrap(),
+            u128::MAX
+        );
+        assert!(
+            parse_scalar("0x100000000000000000000000000000000")
+                .try_to_u128()
+                .is_none()
+        );
+        assert!(
+            parse_scalar("0x100000000000000000000000000000001")
+                .try_to_u128()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_to_u256() {
+        assert_eq!(from_const(0).to_u256(), "0".parse().unwrap());
+        assert_eq!(from_const(1).to_u256(), "1".parse().unwrap());
+        assert_eq!(from_const(2).to_u256(), "2".parse().unwrap());
+        assert_eq!(
+            (Scalar::MAX - Scalar::ONE).to_u256(),
+            "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547bfffffffffffffff"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            Scalar::MAX.to_u256(),
+            "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000000"
+                .parse()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_to_u512() {
+        assert_eq!(from_const(0).to_u512(), "0".parse().unwrap());
+        assert_eq!(from_const(1).to_u512(), "1".parse().unwrap());
+        assert_eq!(from_const(2).to_u512(), "2".parse().unwrap());
+        assert_eq!(
+            (Scalar::MAX - Scalar::ONE).to_u512(),
+            "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547bfffffffffffffff"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            Scalar::MAX.to_u512(),
+            "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000000"
+                .parse()
+                .unwrap()
+        );
+    }
+
+    // #[test]
+    // fn test_multiplicative_generator() {
+    //     assert_eq!(Scalar::MULTIPLICATIVE_GENERATOR, from_const(5));
+    //     assert_eq!(
+    //         Scalar::MULTIPLICATIVE_GENERATOR.pow(Scalar::MAX / from_const(1u64 << Scalar::S)),
+    //         Scalar::ROOT_OF_UNITY
+    //     );
+    // }
+
+    #[test]
+    fn test_minus_two() {
+        assert_eq!(Scalar::MINUS_TWO, -from_const(2));
+        assert_eq!(
+            from_const(42).invert_unwrap(),
+            from_const(42).pow(Scalar::MINUS_TWO)
+        );
+    }
+
+    #[test]
+    fn test_two_inv() {
+        assert_eq!(Scalar::TWO_INV, from_const(2).invert_unwrap());
+        assert_eq!(Scalar::TWO_INV.invert_unwrap(), from_const(2));
+    }
+
     // TODO
 }
