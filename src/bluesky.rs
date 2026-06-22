@@ -120,6 +120,14 @@ impl Scalar {
         }
     }
 
+    const fn modp(self) -> Self {
+        let subp = self.subp();
+        match self.cmp_raw(&Self::MAX_RAW) {
+            Ordering::Greater => subp,
+            _ => self,
+        }
+    }
+
     /// Performs Montgomery multiplication using CIOS over 64-bit limbs.
     const fn mont_mul(lhs: &Self, rhs: &Self) -> Self {
         let mut t0: u64;
@@ -186,11 +194,7 @@ impl Scalar {
         (t2, carry) = mac(t3, m, Self::P[3], carry);
         t3 = t4 + carry;
 
-        let result = Self(t0, t1, t2, t3);
-        match result.cmp_raw(&Self::MAX_RAW) {
-            Ordering::Greater => result.subp(),
-            _ => result,
-        }
+        Self(t0, t1, t2, t3).modp()
     }
 
     /// Performs a Montgomery multiplication by 1, which results in converting from Montgomery form
@@ -239,11 +243,7 @@ impl Scalar {
         (t2, carry) = mac(t3, m, Self::P[3], carry);
         t3 = carry;
 
-        let result = Self(t0, t1, t2, t3);
-        match result.cmp_raw(&Self::MAX_RAW) {
-            Ordering::Greater => result.subp(),
-            _ => result,
-        }
+        Self(t0, t1, t2, t3).modp()
     }
 
     /// Constructs scalars at compile time.
@@ -399,11 +399,7 @@ impl Add<&Scalar> for Scalar {
         let (r1, c1) = adc(self.1, rhs.1, c0);
         let (r2, c2) = adc(self.2, rhs.2, c1);
         let (r3, _) = adc(self.3, rhs.3, c2);
-        let result = Self(r0, r1, r2, r3);
-        match result.cmp_raw(&Self::MAX_RAW) {
-            Ordering::Greater => result.subp(),
-            _ => result,
-        }
+        Self(r0, r1, r2, r3).modp()
     }
 }
 
@@ -617,7 +613,9 @@ impl TryFrom<U256> for Scalar {
     type Error = anyhow::Error;
 
     fn try_from(value: U256) -> Result<Self, Self::Error> {
-        Self::try_from_le_bytes(&value.to_little_endian()).context("overflow")
+        Self::try_from_le_bytes(&value.to_little_endian())
+            .into_option()
+            .context("overflow")
     }
 }
 
@@ -673,7 +671,11 @@ impl Field for Scalar {
         }
     }
 
-    fn invert(&self) -> Option<Self> {
+    fn invert(&self) -> CtOption<Self> {
+        CtOption::new(self.pow(Scalar::MINUS_TWO), !self.is_zero())
+    }
+
+    fn invert_vartime(&self) -> Option<Self> {
         if self.is_zero().into() {
             None
         } else {
@@ -681,25 +683,7 @@ impl Field for Scalar {
         }
     }
 
-    fn invert_const_time(&self) -> CtOption<Self> {
-        CtOption::new(self.pow_const_time(Scalar::MINUS_TWO), !self.is_zero())
-    }
-
     fn pow(mut self, exp: Self) -> Self {
-        static ONE: U256 = U256::one();
-        let mut exp = exp.to_u256();
-        let mut result = Self::ONE;
-        while !exp.is_zero() {
-            if !(exp & ONE).is_zero() {
-                result *= self;
-            }
-            exp >>= 1;
-            self = self.square();
-        }
-        result
-    }
-
-    fn pow_const_time(mut self, exp: Self) -> Self {
         static ONE: U256 = U256::one();
         let mut exp = exp.to_u256();
         let mut result = Self::ONE;
@@ -716,17 +700,29 @@ impl Field for Scalar {
         result
     }
 
-    fn div_int(&self, rhs: &Self) -> Option<(Self, Self)> {
-        if rhs.is_zero().into() {
-            return None;
+    fn pow_vartime(mut self, exp: Self) -> Self {
+        static ONE: U256 = U256::one();
+        let mut exp = exp.to_u256();
+        let mut result = Self::ONE;
+        while !exp.is_zero() {
+            if !(exp & ONE).is_zero() {
+                result *= self;
+            }
+            exp >>= 1;
+            self = self.square();
         }
+        result
+    }
+
+    fn div_int(&self, rhs: &Self) -> (Self, Self) {
+        assert!(!bool::from(rhs.is_zero()));
         let lhs = self.to_u256();
         let rhs = rhs.to_u256();
         let (quotient, remainder) = lhs.div_mod(rhs);
-        Some((quotient.try_into().unwrap(), remainder.try_into().unwrap()))
+        (quotient.try_into().unwrap(), remainder.try_into().unwrap())
     }
 
-    fn try_from_le_bytes(bytes: &[u8]) -> Option<Self> {
+    fn try_from_le_bytes(bytes: &[u8]) -> CtOption<Self> {
         assert!(bytes.len() == 32);
         let raw = Self(
             u64::from_le_bytes(bytes[0..8].try_into().unwrap()),
@@ -734,13 +730,13 @@ impl Field for Scalar {
             u64::from_le_bytes(bytes[16..24].try_into().unwrap()),
             u64::from_le_bytes(bytes[24..32].try_into().unwrap()),
         );
-        match raw.cmp_raw(&Self::MAX_RAW) {
-            Ordering::Greater => None,
-            _ => Some(Self::mont_mul(&raw, &Self::R2)),
-        }
+        CtOption::new(
+            Self::mont_mul(&raw, &Self::R2),
+            Choice::from((raw.cmp_raw(&Self::MAX_RAW) != Ordering::Greater) as u8),
+        )
     }
 
-    fn try_from_be_bytes(bytes: &[u8]) -> Option<Self> {
+    fn try_from_be_bytes(bytes: &[u8]) -> CtOption<Self> {
         assert!(bytes.len() == 32);
         let raw = Self(
             u64::from_be_bytes(bytes[24..32].try_into().unwrap()),
@@ -748,10 +744,10 @@ impl Field for Scalar {
             u64::from_be_bytes(bytes[8..16].try_into().unwrap()),
             u64::from_be_bytes(bytes[0..8].try_into().unwrap()),
         );
-        match raw.cmp_raw(&Self::MAX_RAW) {
-            Ordering::Greater => None,
-            _ => Some(Self::mont_mul(&raw, &Self::R2)),
-        }
+        CtOption::new(
+            Self::mont_mul(&raw, &Self::R2),
+            Choice::from((raw.cmp_raw(&Self::MAX_RAW) != Ordering::Greater) as u8),
+        )
     }
 
     fn from_str_radix(s: &str, radix: usize) -> Result<Self, std::fmt::Error> {
@@ -844,34 +840,36 @@ impl Field256 for Scalar {
         Self::from_u512_mod_n(u512)
     }
 
-    fn try_to_u32(&self) -> Option<u32> {
+    fn try_to_u32(&self) -> CtOption<u32> {
         let raw = self.to_raw();
-        if (raw.1, raw.2, raw.3) != (0, 0, 0) {
-            return None;
-        }
-        if raw.0 > u32::MAX as u64 {
-            return None;
-        }
-        Some(raw.0 as u32)
+        CtOption::new(
+            raw.0 as u32,
+            Choice::from((raw.0 <= u32::MAX as u64) as u8)
+                & Choice::from((raw.1 == 0) as u8)
+                & Choice::from((raw.2 == 0) as u8)
+                & Choice::from((raw.3 == 0) as u8),
+        )
     }
 
-    fn try_to_u64(&self) -> Option<u64> {
+    fn try_to_u64(&self) -> CtOption<u64> {
         let raw = self.to_raw();
-        if (raw.1, raw.2, raw.3) != (0, 0, 0) {
-            return None;
-        }
-        Some(raw.0)
+        CtOption::new(
+            raw.0 as u64,
+            Choice::from((raw.1 == 0) as u8)
+                & Choice::from((raw.2 == 0) as u8)
+                & Choice::from((raw.3 == 0) as u8),
+        )
     }
 
-    fn try_to_u128(&self) -> Option<u128> {
+    fn try_to_u128(&self) -> CtOption<u128> {
         let raw = self.to_raw();
-        if (raw.2, raw.3) != (0, 0) {
-            return None;
-        }
         let mut bytes = [0u8; 16];
         bytes[0..8].copy_from_slice(&raw.0.to_le_bytes());
         bytes[8..16].copy_from_slice(&raw.1.to_le_bytes());
-        Some(u128::from_le_bytes(bytes))
+        CtOption::new(
+            u128::from_le_bytes(bytes),
+            Choice::from((raw.2 == 0) as u8) & Choice::from((raw.3 == 0) as u8),
+        )
     }
 
     fn to_u256(&self) -> U256 {
@@ -1887,14 +1885,14 @@ mod tests {
         assert_eq!(value * value.invert().unwrap(), Scalar::ONE);
         assert_eq!(value * value.invert_unwrap(), Scalar::ONE);
         assert_eq!(value * value.invert_or_zero(), Scalar::ONE);
-        assert_eq!(value * value.invert_const_time().unwrap(), Scalar::ONE);
+        assert_eq!(value * value.invert_vartime().unwrap(), Scalar::ONE);
     }
 
     #[test]
     fn test_inversion() {
-        assert!(from_const(0).invert().is_none());
+        assert!(from_const(0).invert_vartime().is_none());
         assert_eq!(from_const(0).invert_or_zero(), Scalar::ZERO);
-        assert!(bool::from(from_const(0).invert_const_time().is_none()));
+        assert!(bool::from(from_const(0).invert().is_none()));
         test_inversion_impl(1u64.into());
         test_inversion_impl(2u64.into());
         test_inversion_impl(42u64.into());
@@ -1930,42 +1928,41 @@ mod tests {
     }
 
     #[test]
-    fn test_power_const_time() {
-        assert_eq!(from_const(0).pow_const_time(from_const(0)), from_const(1));
-        assert_eq!(from_const(0).pow_const_time(from_const(1)), from_const(0));
-        assert_eq!(from_const(0).pow_const_time(from_const(2)), from_const(0));
-        assert_eq!(from_const(1).pow_const_time(from_const(0)), from_const(1));
-        assert_eq!(from_const(1).pow_const_time(from_const(1)), from_const(1));
-        assert_eq!(from_const(1).pow_const_time(from_const(2)), from_const(1));
-        assert_eq!(from_const(2).pow_const_time(from_const(0)), from_const(1));
-        assert_eq!(from_const(2).pow_const_time(from_const(1)), from_const(2));
-        assert_eq!(from_const(2).pow_const_time(from_const(2)), from_const(4));
-        assert_eq!(from_const(2).pow_const_time(from_const(3)), from_const(8));
+    fn test_power_vartime() {
+        assert_eq!(from_const(0).pow_vartime(from_const(0)), from_const(1));
+        assert_eq!(from_const(0).pow_vartime(from_const(1)), from_const(0));
+        assert_eq!(from_const(0).pow_vartime(from_const(2)), from_const(0));
+        assert_eq!(from_const(1).pow_vartime(from_const(0)), from_const(1));
+        assert_eq!(from_const(1).pow_vartime(from_const(1)), from_const(1));
+        assert_eq!(from_const(1).pow_vartime(from_const(2)), from_const(1));
+        assert_eq!(from_const(2).pow_vartime(from_const(0)), from_const(1));
+        assert_eq!(from_const(2).pow_vartime(from_const(1)), from_const(2));
+        assert_eq!(from_const(2).pow_vartime(from_const(2)), from_const(4));
+        assert_eq!(from_const(2).pow_vartime(from_const(3)), from_const(8));
     }
 
     #[test]
-    fn test_small_power_const_time() {
-        assert_eq!(from_const(0).pow_small_const_time(0), from_const(1));
-        assert_eq!(from_const(0).pow_small_const_time(1), from_const(0));
-        assert_eq!(from_const(0).pow_small_const_time(2), from_const(0));
-        assert_eq!(from_const(1).pow_small_const_time(0), from_const(1));
-        assert_eq!(from_const(1).pow_small_const_time(1), from_const(1));
-        assert_eq!(from_const(1).pow_small_const_time(2), from_const(1));
-        assert_eq!(from_const(2).pow_small_const_time(0), from_const(1));
-        assert_eq!(from_const(2).pow_small_const_time(1), from_const(2));
-        assert_eq!(from_const(2).pow_small_const_time(2), from_const(4));
-        assert_eq!(from_const(2).pow_small_const_time(3), from_const(8));
+    fn test_small_power_vartime() {
+        assert_eq!(from_const(0).pow_small_vartime(0), from_const(1));
+        assert_eq!(from_const(0).pow_small_vartime(1), from_const(0));
+        assert_eq!(from_const(0).pow_small_vartime(2), from_const(0));
+        assert_eq!(from_const(1).pow_small_vartime(0), from_const(1));
+        assert_eq!(from_const(1).pow_small_vartime(1), from_const(1));
+        assert_eq!(from_const(1).pow_small_vartime(2), from_const(1));
+        assert_eq!(from_const(2).pow_small_vartime(0), from_const(1));
+        assert_eq!(from_const(2).pow_small_vartime(1), from_const(2));
+        assert_eq!(from_const(2).pow_small_vartime(2), from_const(4));
+        assert_eq!(from_const(2).pow_small_vartime(3), from_const(8));
     }
 
     #[test]
     fn test_integer_division() {
-        assert!(from_const(13).div_int(&Scalar::ZERO).is_none());
         assert_eq!(
-            from_const(13).div_int(&from_const(5)).unwrap(),
+            from_const(13).div_int(&from_const(5)),
             (from_const(2), from_const(3))
         );
         assert_eq!(
-            from_const(61).div_int(&from_const(7)).unwrap(),
+            from_const(61).div_int(&from_const(7)),
             (from_const(8), from_const(5))
         );
     }
@@ -2537,8 +2534,12 @@ mod tests {
             u32::MAX - 1
         );
         assert_eq!(from_const(u32::MAX as u64).try_to_u32().unwrap(), u32::MAX);
-        assert!(from_const(u32::MAX as u64 + 1).try_to_u32().is_none());
-        assert!(from_const(u32::MAX as u64 + 2).try_to_u32().is_none());
+        assert!(bool::from(
+            from_const(u32::MAX as u64 + 1).try_to_u32().is_none()
+        ));
+        assert!(bool::from(
+            from_const(u32::MAX as u64 + 2).try_to_u32().is_none()
+        ));
     }
 
     #[test]
@@ -2552,8 +2553,12 @@ mod tests {
             parse_scalar("0xffffffffffffffff").try_to_u64().unwrap(),
             u64::MAX
         );
-        assert!(parse_scalar("0x10000000000000000").try_to_u64().is_none());
-        assert!(parse_scalar("0x10000000000000001").try_to_u64().is_none());
+        assert!(bool::from(
+            parse_scalar("0x10000000000000000").try_to_u64().is_none()
+        ));
+        assert!(bool::from(
+            parse_scalar("0x10000000000000001").try_to_u64().is_none()
+        ));
     }
 
     #[test]
@@ -2573,16 +2578,16 @@ mod tests {
                 .unwrap(),
             u128::MAX
         );
-        assert!(
+        assert!(bool::from(
             parse_scalar("0x100000000000000000000000000000000")
                 .try_to_u128()
                 .is_none()
-        );
-        assert!(
+        ));
+        assert!(bool::from(
             parse_scalar("0x100000000000000000000000000000001")
                 .try_to_u128()
                 .is_none()
-        );
+        ));
     }
 
     #[test]
