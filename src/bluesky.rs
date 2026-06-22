@@ -1,4 +1,5 @@
-use anyhow::Context;
+use anyhow::{self, Context};
+use getrandom;
 use primitive_types::{H512, U256, U512};
 use starkom_ff::{
     Field, Field256, PrimeField, PrimeField256,
@@ -665,10 +666,7 @@ impl Field for Scalar {
         value.2 = (value.2 << 1) | (value.1 >> 63);
         value.1 = (value.1 << 1) | (value.0 >> 63);
         value.0 = value.0 << 1;
-        match value.cmp_raw(&Self::MAX_RAW) {
-            Ordering::Greater => value.subp(),
-            _ => value,
-        }
+        value.modp()
     }
 
     fn invert(&self) -> CtOption<Self> {
