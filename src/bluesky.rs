@@ -620,6 +620,14 @@ impl TryFrom<U256> for Scalar {
     }
 }
 
+impl TryFrom<usize> for Scalar {
+    type Error = anyhow::Error;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Ok(Self::mont_mul(&Self(value as u64, 0, 0, 0), &Self::R2))
+    }
+}
+
 impl Field for Scalar {
     const LEN: usize = 32;
 
@@ -1757,6 +1765,21 @@ mod tests {
         );
         assert!(<Scalar as TryFrom<U256>>::try_from(modulus).is_err());
         assert!(<Scalar as TryFrom<U256>>::try_from(modulus + 1).is_err());
+    }
+
+    #[test]
+    fn test_try_from_usize() {
+        assert_eq!(Scalar::try_from(0usize).unwrap(), from_const(0));
+        assert_eq!(Scalar::try_from(1usize).unwrap(), from_const(1));
+        assert_eq!(Scalar::try_from(2usize).unwrap(), from_const(2));
+        assert_eq!(
+            Scalar::try_from(usize::MAX - 1).unwrap(),
+            from_const(usize::MAX as u64 - 1)
+        );
+        assert_eq!(
+            Scalar::try_from(usize::MAX).unwrap(),
+            from_const(usize::MAX as u64)
+        );
     }
 
     #[test]
