@@ -55,5 +55,6 @@ diffusion.
 
 ## Implementation
 
-The implementation is based on the interface from the `ff` crate and uses Montgomery form with four
-64-bit limbs.
+The implementation is based on the interface from the
+[`starkom-ff`](https://crates.io/crates/starkom-ff) crate and uses Montgomery form with four 64-bit
+limbs.

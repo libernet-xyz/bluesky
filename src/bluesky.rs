@@ -301,6 +301,18 @@ impl Scalar {
     }
 }
 
+/// Alias for [`Scalar::from_const`].
+pub const fn from_const(value: u64) -> Scalar {
+    Scalar::from_const(value)
+}
+
+/// Parses a scalar from a string using the [`FromStr`] trait and unwrapping the result.
+///
+/// REQUIRES: the input string must be a static one known to have a valid scalar.
+pub fn parse_scalar(s: &'static str) -> Scalar {
+    s.parse().unwrap()
+}
+
 impl std::fmt::Debug for Scalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Scalar({:#066x})", self)
@@ -968,14 +980,6 @@ impl ThreeAdicField for Scalar {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn from_const(value: u64) -> Scalar {
-        Scalar::from_const(value)
-    }
-
-    fn parse_scalar(s: &'static str) -> Scalar {
-        s.parse().unwrap()
-    }
 
     #[test]
     fn test_from_const() {
