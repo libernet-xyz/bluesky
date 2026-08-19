@@ -1924,6 +1924,38 @@ mod tests {
         test_inversion_impl(Scalar::MAX);
     }
 
+    fn test_invert_batch_impl(values: &[Scalar]) {
+        let expected: Vec<Scalar> = values
+            .iter()
+            .map(|value| value.invert_vartime().unwrap())
+            .collect();
+
+        let mut batch = values.to_vec();
+        Scalar::invert_batch(&mut batch);
+        assert_eq!(batch, expected);
+
+        batch = values.to_vec();
+        Scalar::invert_batch_vartime(&mut batch);
+        assert_eq!(batch, expected);
+    }
+
+    #[test]
+    fn test_invert_batch() {
+        test_invert_batch_impl(&[]);
+        test_invert_batch_impl(&[Scalar::ONE]);
+        test_invert_batch_impl(&[from_const(42)]);
+        test_invert_batch_impl(&[Scalar::MAX]);
+        test_invert_batch_impl(&[from_const(1), from_const(2), from_const(3)]);
+        test_invert_batch_impl(&[
+            from_const(42),
+            Scalar::ONE,
+            Scalar::MAX,
+            from_const(1),
+            from_const(2),
+            Scalar::MAX - from_const(1),
+        ]);
+    }
+
     #[test]
     fn test_power() {
         assert_eq!(from_const(0).pow(from_const(0)), from_const(1));
