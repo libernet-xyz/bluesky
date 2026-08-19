@@ -2,7 +2,7 @@ use anyhow::{self, Context};
 use getrandom;
 use primitive_types::{H512, U256, U512};
 use starkom_ff::{
-    Field, Field256, PrimeField, PrimeField256,
+    Field, Field256, PrimeField, PrimeField256, ThreeAdicField,
     helpers::{adc, add, mac, mul, sbb, sub},
 };
 use std::cmp::Ordering;
@@ -14,21 +14,6 @@ use subtle::{
     Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeGreater, ConstantTimeLess,
     CtOption,
 };
-
-/// Describes a prime field with a (3^T)-th root of unity.
-pub trait ThreeAdicField: PrimeField {
-    /// The 3-adicity of the field.
-    const T: u32;
-
-    /// Inverse of 3 in the field.
-    const THREE_INV: Self;
-
-    /// The primitive 3-adic root of unity, a number w such that w^(3^T) = 1.
-    const THREE_ADIC_ROOT_OF_UNITY: Self;
-
-    /// The inverse of the root of unity.
-    const THREE_ADIC_ROOT_OF_UNITY_INV: Self;
-}
 
 /// The prime order of the BlueSky field stored as four 64-bit limbs in little endian order.
 pub const MODULUS: [u64; 4] = [
@@ -953,7 +938,7 @@ impl PrimeField for Scalar {
 impl PrimeField256 for Scalar {}
 
 impl ThreeAdicField for Scalar {
-    const T: u32 = 39;
+    const T: usize = 39;
 
     const THREE_INV: Self = Self(
         0x1555555555555555u64,
