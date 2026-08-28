@@ -629,6 +629,9 @@ impl Field for Scalar {
     const MODULUS: &'static str =
         "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000001";
 
+    const CHARACTERISTIC: &'static str =
+        "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000001";
+
     const LEN: usize = 32;
 
     const ZERO: Self = Self(0, 0, 0, 0);
@@ -640,6 +643,50 @@ impl Field for Scalar {
         0x135b99d7dbd1ffd7u64,
         0xfffffffffffffffau64,
         0x7fffffffffffffffu64,
+    );
+
+    const S: usize = 62;
+
+    const MULTIPLICATIVE_GENERATOR: Self = Self(
+        0x7ffffffffffffff6u64,
+        0xbf795485cdeeab32u64,
+        0x0000000000000013u64,
+        0x0000000000000000u64,
+    );
+
+    const MINUS_TWO: Self = Self(
+        0xc000000000000005u64,
+        0x204355bd1908aa66u64,
+        0xfffffffffffffff6u64,
+        0x7fffffffffffffffu64,
+    );
+
+    const TWO_INV: Self = Self(
+        0x3fffffffffffffffu64,
+        0xf98c220d6164aab8u64,
+        0x0000000000000001u64,
+        0x0000000000000000u64,
+    );
+
+    const ROOT_OF_UNITY: Self = Self(
+        0x1c21299e7a6bf02cu64,
+        0x9668eae30ea674fdu64,
+        0x539332d8030750aau64,
+        0x771ec3ece255e5ffu64,
+    );
+
+    const ROOT_OF_UNITY_INV: Self = Self(
+        0x9d664a1b2af8b848u64,
+        0x3eb41e848f20b29eu64,
+        0x9ed9b5f1d9a9a30fu64,
+        0x093d94fd0d3cc279u64,
+    );
+
+    const DELTA: Self = Self(
+        0x0f81667ad386a65eu64,
+        0xdaab9f0d961bebc7u64,
+        0x1690cf9f051915cau64,
+        0x0e26e41e50befeedu64,
     );
 
     fn is_odd(&self) -> Choice {
@@ -889,51 +936,7 @@ impl Field256 for Scalar {
     }
 }
 
-impl PrimeField for Scalar {
-    const S: usize = 62;
-
-    const MULTIPLICATIVE_GENERATOR: Self = Self(
-        0x7ffffffffffffff6u64,
-        0xbf795485cdeeab32u64,
-        0x0000000000000013u64,
-        0x0000000000000000u64,
-    );
-
-    const MINUS_TWO: Self = Self(
-        0xc000000000000005u64,
-        0x204355bd1908aa66u64,
-        0xfffffffffffffff6u64,
-        0x7fffffffffffffffu64,
-    );
-
-    const TWO_INV: Self = Self(
-        0x3fffffffffffffffu64,
-        0xf98c220d6164aab8u64,
-        0x0000000000000001u64,
-        0x0000000000000000u64,
-    );
-
-    const ROOT_OF_UNITY: Self = Self(
-        0x1c21299e7a6bf02cu64,
-        0x9668eae30ea674fdu64,
-        0x539332d8030750aau64,
-        0x771ec3ece255e5ffu64,
-    );
-
-    const ROOT_OF_UNITY_INV: Self = Self(
-        0x9d664a1b2af8b848u64,
-        0x3eb41e848f20b29eu64,
-        0x9ed9b5f1d9a9a30fu64,
-        0x093d94fd0d3cc279u64,
-    );
-
-    const DELTA: Self = Self(
-        0x0f81667ad386a65eu64,
-        0xdaab9f0d961bebc7u64,
-        0x1690cf9f051915cau64,
-        0x0e26e41e50befeedu64,
-    );
-}
+impl PrimeField for Scalar {}
 
 impl PrimeField256 for Scalar {}
 
