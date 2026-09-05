@@ -858,6 +858,16 @@ impl Field for Scalar {
         }
         Some(raw.0 as u16)
     }
+
+    fn to_u256(&self) -> U256 {
+        U256::from_little_endian(&self.to_le_bytes())
+    }
+
+    fn to_u512(&self) -> U512 {
+        let mut bytes = [0u8; 64];
+        bytes[0..32].copy_from_slice(&self.to_le_bytes());
+        U512::from_little_endian(&bytes)
+    }
 }
 
 impl Field256 for Scalar {
@@ -923,16 +933,6 @@ impl Field256 for Scalar {
             u128::from_le_bytes(bytes),
             Choice::from((raw.2 == 0) as u8) & Choice::from((raw.3 == 0) as u8),
         )
-    }
-
-    fn to_u256(&self) -> U256 {
-        U256::from_little_endian(&self.to_le_bytes())
-    }
-
-    fn to_u512(&self) -> U512 {
-        let mut bytes = [0u8; 64];
-        bytes[0..32].copy_from_slice(&self.to_le_bytes());
-        U512::from_little_endian(&bytes)
     }
 }
 
