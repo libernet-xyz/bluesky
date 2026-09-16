@@ -732,7 +732,7 @@ impl Field for Scalar {
         if self.is_zero().into() {
             None
         } else {
-            Some(self.pow(Scalar::MINUS_TWO))
+            Some(self.pow_vartime(Scalar::MINUS_TWO))
         }
     }
 
