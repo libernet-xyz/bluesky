@@ -626,6 +626,8 @@ impl TryFrom<usize> for Scalar {
 }
 
 impl Field for Scalar {
+    type BaseField = Scalar;
+
     const MODULUS: &'static str =
         "0x7ffffffffffffffffffffffffffffffe0673ddf29e9b5547c000000000000001";
 
