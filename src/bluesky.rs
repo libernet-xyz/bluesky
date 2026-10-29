@@ -232,6 +232,14 @@ impl Scalar {
         Self(t0, t1, t2, t3).modp()
     }
 
+    /// Converts a raw (non-Montgomery) value to Montgomery form, returning `None` if it's not
+    /// canonical, ie. if it's not less than p.
+    fn try_from_raw(raw: Self) -> CtOption<Self> {
+        let is_canonical = Choice::from((raw.cmp_raw(&Self::MAX_RAW) != Ordering::Greater) as u8);
+        let raw = Self::conditional_select(&Self(0, 0, 0, 0), &raw, is_canonical);
+        CtOption::new(Self::mont_mul(&raw, &Self::R2), is_canonical)
+    }
+
     /// Constructs scalars at compile time.
     pub const fn from_const(value: u64) -> Scalar {
         let raw = Self(value, 0, 0, 0);
@@ -787,10 +795,7 @@ impl Field for Scalar {
             u64::from_le_bytes(bytes[16..24].try_into().unwrap()),
             u64::from_le_bytes(bytes[24..32].try_into().unwrap()),
         );
-        CtOption::new(
-            Self::mont_mul(&raw, &Self::R2),
-            Choice::from((raw.cmp_raw(&Self::MAX_RAW) != Ordering::Greater) as u8),
-        )
+        Self::try_from_raw(raw)
     }
 
     fn try_from_be_bytes(bytes: &[u8]) -> CtOption<Self> {
@@ -801,10 +806,7 @@ impl Field for Scalar {
             u64::from_be_bytes(bytes[8..16].try_into().unwrap()),
             u64::from_be_bytes(bytes[0..8].try_into().unwrap()),
         );
-        CtOption::new(
-            Self::mont_mul(&raw, &Self::R2),
-            Choice::from((raw.cmp_raw(&Self::MAX_RAW) != Ordering::Greater) as u8),
-        )
+        Self::try_from_raw(raw)
     }
 
     fn from_str_radix(s: &str, radix: usize) -> Result<Self, std::fmt::Error> {
@@ -1766,6 +1768,7 @@ mod tests {
         );
         assert!(<Scalar as TryFrom<U256>>::try_from(modulus).is_err());
         assert!(<Scalar as TryFrom<U256>>::try_from(modulus + 1).is_err());
+        assert!(<Scalar as TryFrom<U256>>::try_from(U256::MAX).is_err());
     }
 
     #[test]
@@ -2062,6 +2065,36 @@ mod tests {
     }
 
     #[test]
+    fn test_try_from_le_bytes_out_of_range() {
+        let modulus: U256 = Scalar::MODULUS.parse().unwrap();
+        assert!(bool::from(
+            Scalar::try_from_le_bytes(&modulus.to_little_endian()).is_none()
+        ));
+        assert!(bool::from(
+            Scalar::try_from_le_bytes(&(modulus + 1).to_little_endian()).is_none()
+        ));
+        assert!(bool::from(
+            Scalar::try_from_le_bytes(&(U256::one() << 255).to_little_endian()).is_none()
+        ));
+        assert!(bool::from(Scalar::try_from_le_bytes(&[0xff; 32]).is_none()));
+    }
+
+    #[test]
+    fn test_try_from_be_bytes_out_of_range() {
+        let modulus: U256 = Scalar::MODULUS.parse().unwrap();
+        assert!(bool::from(
+            Scalar::try_from_be_bytes(&modulus.to_big_endian()).is_none()
+        ));
+        assert!(bool::from(
+            Scalar::try_from_be_bytes(&(modulus + 1).to_big_endian()).is_none()
+        ));
+        assert!(bool::from(
+            Scalar::try_from_be_bytes(&(U256::one() << 255).to_big_endian()).is_none()
+        ));
+        assert!(bool::from(Scalar::try_from_be_bytes(&[0xff; 32]).is_none()));
+    }
+
+    #[test]
     fn test_parse_binary() {
         assert_eq!(Scalar::from_str_radix("0", 2).unwrap(), from_const(0));
         assert_eq!(Scalar::from_str_radix("1", 2).unwrap(), from_const(1));
@@ -2257,6 +2290,11 @@ mod tests {
             Scalar::MAX.to_str_radix(10, 0, false),
             "57896044618658097711785492504343953925963004582726670246466397748101839323136"
         );
+    }
+
+    #[test]
+    fn test_parse_hexadecimal_overflow() {
+        assert!(Scalar::from_str_radix(&"f".repeat(64), 16).is_err());
     }
 
     #[test]
