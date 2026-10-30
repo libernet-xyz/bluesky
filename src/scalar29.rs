@@ -355,8 +355,6 @@ impl ConstantTimeGreater for Scalar {
     fn ct_gt(&self, other: &Self) -> Choice {
         let lhs = self.to_raw();
         let rhs = other.to_raw();
-        // Scan from the least significant limb, letting every limb override the outcome of the
-        // less significant ones unless it's equal.
         let mut greater = Choice::from(0);
         for i in 0..LIMBS {
             greater = lhs.0[i].ct_gt(&rhs.0[i]) | lhs.0[i].ct_eq(&rhs.0[i]) & greater;

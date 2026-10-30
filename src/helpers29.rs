@@ -1,8 +1,8 @@
 //! Helpers for multi-precision arithmetic over 29-bit limbs.
 //!
 //! Limbs are stored in `u32`s, and products of limbs are summed in `u64` accumulators. A limb
-//! product takes at most 58 bits, so an accumulator can absorb up to 64 of them before
-//! overflowing, which allows multiplication algorithms to defer carry propagation. That makes this
+//! product takes at most 58 bits, so an accumulator can absorb up to 64 of them before overflowing,
+//! which allows multiplication algorithms to defer carry propagation. That makes this
 //! representation a good fit for targets that lack a 64x64->128-bit multiplication and a carry
 //! flag, such as WebAssembly.
 //!
