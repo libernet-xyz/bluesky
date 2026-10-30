@@ -1,5 +1,5 @@
 use crate::helpers29::{
-    LIMB_BITS, LIMB_MASK, LIMBS, add_limbs, from_words, mac, split, sub_limbs, to_words,
+    LIMB_BITS, LIMB_MASK, LIMBS, add_limbs, from_u64s, mac, split, sub_limbs, to_u64s,
 };
 use anyhow::{self, Context};
 use getrandom;
@@ -21,6 +21,19 @@ pub const MODULUS: [u64; 4] = [
     0x0673ddf29e9b5547u64,
     0xfffffffffffffffeu64,
     0x7fffffffffffffffu64,
+];
+
+/// The prime order of the BlueSky field stored as nine 29-bit limbs in little endian order.
+const MODULUS29: [u32; LIMBS] = [
+    0x00000001u32,
+    0x00000000u32,
+    0x06d551f0u32,
+    0x07bbe53du32,
+    0x1fffe067u32,
+    0x1fffffffu32,
+    0x1fffffffu32,
+    0x1fffffffu32,
+    0x007fffffu32,
 ];
 
 /// Upper-case characters used in textual representations.
@@ -48,30 +61,45 @@ pub struct Scalar([u32; LIMBS]);
 
 impl Scalar {
     /// The raw (non-Montgomery) little-endian representation of `MAX`.
-    const MAX_RAW: Self = Self(from_words([
-        0xc000000000000000u64,
-        0x0673ddf29e9b5547u64,
-        0xfffffffffffffffeu64,
-        0x7fffffffffffffffu64,
-    ]));
+    const MAX_RAW: Self = Self([
+        0x00000000u32,
+        0x00000000u32,
+        0x06d551f0u32,
+        0x07bbe53du32,
+        0x1fffe067u32,
+        0x1fffffffu32,
+        0x1fffffffu32,
+        0x1fffffffu32,
+        0x007fffffu32,
+    ]);
 
     /// R in raw form, ie. `2^261 mod p`.
-    const R: Self = Self(from_words([
-        0xffffffffffffffc0u64,
-        0x63088358592aae0fu64,
-        0x000000000000007eu64,
-        0x0000000000000000u64,
-    ]));
+    const R: Self = Self([
+        0x1fffffc0u32,
+        0x1fffffffu32,
+        0x0aab83ffu32,
+        0x1106b0b2u32,
+        0x0007e630u32,
+        0x00000000u32,
+        0x00000000u32,
+        0x00000000u32,
+        0x00000000u32,
+    ]);
 
     /// R in Montgomery form, ie. R^2 mod p.
-    const R2: Self = Self(from_words([
-        0xbfffffffffff9335u64,
-        0x3e5bcf9c682d971au64,
-        0x5b8abf24b39a783fu64,
-        0x22b0e0d693e376cau64,
-    ]));
+    const R2: Self = Self([
+        0x1fff9335u32,
+        0x1fffffffu32,
+        0x0b65c6afu32,
+        0x179f38d0u32,
+        0x0783f3e5u32,
+        0x1f9259cdu32,
+        0x1b296e2au32,
+        0x1ad27c6eu32,
+        0x0022b0e0u32,
+    ]);
 
-    const P: [u32; LIMBS] = from_words(MODULUS);
+    const P: [u32; LIMBS] = MODULUS29;
 
     /// -p^-1 mod 2^29. It's 2^29-1 because p = 1 mod 2^62, so the factor of every Montgomery
     /// reduction step boils down to a negation.
@@ -82,13 +110,17 @@ impl Scalar {
         let (difference, borrow) = sub_limbs(&self.0, &Self::P);
         // The borrow is 1 iff `self` is less than p, in which case we must keep it.
         let keep = 0u32.wrapping_sub(borrow);
-        let mut limbs = [0u32; LIMBS];
-        let mut i = 0;
-        while i < LIMBS {
-            limbs[i] = (self.0[i] & keep) | (difference[i] & !keep);
-            i += 1;
-        }
-        Self(limbs)
+        Self([
+            (self.0[0] & keep) | (difference[0] & !keep),
+            (self.0[1] & keep) | (difference[1] & !keep),
+            (self.0[2] & keep) | (difference[2] & !keep),
+            (self.0[3] & keep) | (difference[3] & !keep),
+            (self.0[4] & keep) | (difference[4] & !keep),
+            (self.0[5] & keep) | (difference[5] & !keep),
+            (self.0[6] & keep) | (difference[6] & !keep),
+            (self.0[7] & keep) | (difference[7] & !keep),
+            (self.0[8] & keep) | (difference[8] & !keep),
+        ])
     }
 
     /// Compares raw scalars, ignoring Montgomery form.
@@ -166,9 +198,9 @@ impl Scalar {
         Self::mont_reduce(columns)
     }
 
-    /// Returns the raw (non-Montgomery) value as four 64-bit words in little-endian order.
-    const fn to_raw_words(&self) -> [u64; 4] {
-        to_words(self.to_raw().0)
+    /// Returns the raw (non-Montgomery) value as four `u64`s in little-endian order.
+    const fn to_raw_u64s(&self) -> [u64; 4] {
+        to_u64s(self.to_raw().0)
     }
 
     /// Converts a raw (non-Montgomery) value to Montgomery form. The value must be less than p.
@@ -176,10 +208,10 @@ impl Scalar {
         Self::mont_mul(&raw, &Self::R2)
     }
 
-    /// Converts a raw (non-Montgomery) value provided as four 64-bit words in little-endian order
-    /// to Montgomery form. The value must be less than p.
-    const fn from_raw_words(words: [u64; 4]) -> Self {
-        Self::from_raw(Self(from_words(words)))
+    /// Converts a raw (non-Montgomery) value provided as four `u64`s in little-endian order to
+    /// Montgomery form. The value must be less than p.
+    const fn from_raw_u64s(u64s: [u64; 4]) -> Self {
+        Self::from_raw(Self(from_u64s(u64s)))
     }
 
     /// Converts a raw (non-Montgomery) value to Montgomery form, returning `None` if it's not
@@ -192,7 +224,7 @@ impl Scalar {
 
     /// Constructs scalars at compile time.
     pub const fn from_const(value: u64) -> Scalar {
-        Self::from_raw_words([value, 0, 0, 0])
+        Self::from_raw_u64s([value, 0, 0, 0])
     }
 
     fn to_string_impl(&self, radix: usize, pad_to: usize, upper_case: bool) -> String {
@@ -526,31 +558,31 @@ impl FromStr for Scalar {
 
 impl From<u8> for Scalar {
     fn from(value: u8) -> Self {
-        Self::from_raw_words([value as u64, 0, 0, 0])
+        Self::from_raw_u64s([value as u64, 0, 0, 0])
     }
 }
 
 impl From<u16> for Scalar {
     fn from(value: u16) -> Self {
-        Self::from_raw_words([value as u64, 0, 0, 0])
+        Self::from_raw_u64s([value as u64, 0, 0, 0])
     }
 }
 
 impl From<u32> for Scalar {
     fn from(value: u32) -> Self {
-        Self::from_raw_words([value as u64, 0, 0, 0])
+        Self::from_raw_u64s([value as u64, 0, 0, 0])
     }
 }
 
 impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
-        Self::from_raw_words([value, 0, 0, 0])
+        Self::from_raw_u64s([value, 0, 0, 0])
     }
 }
 
 impl From<u128> for Scalar {
     fn from(value: u128) -> Self {
-        Self::from_raw_words([value as u64, (value >> 64) as u64, 0, 0])
+        Self::from_raw_u64s([value as u64, (value >> 64) as u64, 0, 0])
     }
 }
 
@@ -568,7 +600,7 @@ impl TryFrom<usize> for Scalar {
     type Error = anyhow::Error;
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
-        Ok(Self::from_raw_words([value as u64, 0, 0, 0]))
+        Ok(Self::from_raw_u64s([value as u64, 0, 0, 0]))
     }
 }
 
@@ -589,45 +621,90 @@ impl Field for Scalar {
 
     const ONE: Self = Self::R;
 
-    const MAX: Self = Self::from_raw(Self::MAX_RAW);
+    const MAX: Self = Self([
+        0x00000041u32,
+        0x00000000u32,
+        0x1c29cdf0u32,
+        0x16b5348au32,
+        0x1ff7fa36u32,
+        0x1fffffffu32,
+        0x1fffffffu32,
+        0x1fffffffu32,
+        0x007fffffu32,
+    ]);
 
     const S: usize = 62;
 
-    const MULTIPLICATIVE_GENERATOR: Self = Self::from_const(5);
-
-    const MINUS_TWO: Self = Self::from_raw_words([
-        0xbfffffffffffffffu64,
-        0x0673ddf29e9b5547u64,
-        0xfffffffffffffffeu64,
-        0x7fffffffffffffffu64,
+    const MULTIPLICATIVE_GENERATOR: Self = Self([
+        0x1ffffec0u32,
+        0x1fffffffu32,
+        0x155993ffu32,
+        0x1521737bu32,
+        0x00277ef2u32,
+        0x00000000u32,
+        0x00000000u32,
+        0x00000000u32,
+        0x00000000u32,
     ]);
 
-    const TWO_INV: Self = Self::from_raw_words([
-        0xe000000000000001u64,
-        0x0339eef94f4daaa3u64,
-        0xffffffffffffffffu64,
-        0x3fffffffffffffffu64,
+    const MINUS_TWO: Self = Self([
+        0x00000081u32,
+        0x00000000u32,
+        0x117e49f0u32,
+        0x05ae83d8u32,
+        0x1ff01406u32,
+        0x1fffffffu32,
+        0x1fffffffu32,
+        0x1fffffffu32,
+        0x007fffffu32,
     ]);
 
-    const ROOT_OF_UNITY: Self = Self::from_raw_words([
-        0xb3977ca1a5bbfc9cu64,
-        0xf6e0a747a2afe898u64,
-        0xca6891eceba43568u64,
-        0x2772569d549e1249u64,
+    const TWO_INV: Self = Self([
+        0x1fffffe0u32,
+        0x1fffffffu32,
+        0x0555c1ffu32,
+        0x08835859u32,
+        0x0003f318u32,
+        0x00000000u32,
+        0x00000000u32,
+        0x00000000u32,
+        0x00000000u32,
     ]);
 
-    const ROOT_OF_UNITY_INV: Self = Self::from_raw_words([
-        0x1420121cd00b4cdbu64,
-        0xcdedc4e2bcf6b19fu64,
-        0xe7eeecd2c4e6ecd7u64,
-        0x76def406f046ef5eu64,
+    const ROOT_OF_UNITY: Self = Self([
+        0x0d7e0563u32,
+        0x01299e7au32,
+        0x0d7da0b1u32,
+        0x1a6fcbbau32,
+        0x0158c11fu32,
+        0x0d803075u32,
+        0x1fa9c999u32,
+        0x13895797u32,
+        0x0063d87du32,
     ]);
 
-    const DELTA: Self = Self::from_raw_words([
-        0x2987caddeb54cdceu64,
-        0xdea23905b503a100u64,
-        0xc95edefd145053d6u64,
-        0x232680e97f4b6251u64,
+    const ROOT_OF_UNITY_INV: Self = Self([
+        0x1f1708feu32,
+        0x064a1b2au32,
+        0x17ea510bu32,
+        0x1829594du32,
+        0x061ebc99u32,
+        0x1f1d9a9au32,
+        0x1ccf6cdau32,
+        0x1434f309u32,
+        0x0027b29fu32,
+    ]);
+
+    const DELTA: Self = Self([
+        0x10d4cbbdu32,
+        0x01667ad3u32,
+        0x0ade42acu32,
+        0x108fb5cfu32,
+        0x0b961421u32,
+        0x19f05191u32,
+        0x168b4867u32,
+        0x1942fbfbu32,
+        0x0044dc83u32,
     ]);
 
     fn is_odd(&self) -> Choice {
@@ -718,7 +795,7 @@ impl Field for Scalar {
 
     fn try_from_le_bytes(bytes: &[u8]) -> CtOption<Self> {
         assert!(bytes.len() == 32);
-        let raw = Self(from_words([
+        let raw = Self(from_u64s([
             u64::from_le_bytes(bytes[0..8].try_into().unwrap()),
             u64::from_le_bytes(bytes[8..16].try_into().unwrap()),
             u64::from_le_bytes(bytes[16..24].try_into().unwrap()),
@@ -729,7 +806,7 @@ impl Field for Scalar {
 
     fn try_from_be_bytes(bytes: &[u8]) -> CtOption<Self> {
         assert!(bytes.len() == 32);
-        let raw = Self(from_words([
+        let raw = Self(from_u64s([
             u64::from_be_bytes(bytes[24..32].try_into().unwrap()),
             u64::from_be_bytes(bytes[16..24].try_into().unwrap()),
             u64::from_be_bytes(bytes[8..16].try_into().unwrap()),
@@ -773,7 +850,7 @@ impl Field for Scalar {
     }
 
     fn try_to_u8(&self) -> Option<u8> {
-        let raw = self.to_raw_words();
+        let raw = self.to_raw_u64s();
         if (raw[1], raw[2], raw[3]) != (0, 0, 0) {
             return None;
         }
@@ -784,7 +861,7 @@ impl Field for Scalar {
     }
 
     fn try_to_u16(&self) -> Option<u16> {
-        let raw = self.to_raw_words();
+        let raw = self.to_raw_u64s();
         if (raw[1], raw[2], raw[3]) != (0, 0, 0) {
             return None;
         }
@@ -807,7 +884,7 @@ impl Field for Scalar {
 
 impl Field256 for Scalar {
     fn to_le_bytes(&self) -> [u8; 32] {
-        let raw = self.to_raw_words();
+        let raw = self.to_raw_u64s();
         let mut bytes = [0u8; 32];
         bytes[0..8].copy_from_slice(&raw[0].to_le_bytes());
         bytes[8..16].copy_from_slice(&raw[1].to_le_bytes());
@@ -817,7 +894,7 @@ impl Field256 for Scalar {
     }
 
     fn to_be_bytes(&self) -> [u8; 32] {
-        let raw = self.to_raw_words();
+        let raw = self.to_raw_u64s();
         let mut bytes = [0u8; 32];
         bytes[0..8].copy_from_slice(&raw[3].to_be_bytes());
         bytes[8..16].copy_from_slice(&raw[2].to_be_bytes());
@@ -839,7 +916,7 @@ impl Field256 for Scalar {
     }
 
     fn try_to_u32(&self) -> CtOption<u32> {
-        let raw = self.to_raw_words();
+        let raw = self.to_raw_u64s();
         CtOption::new(
             raw[0] as u32,
             Choice::from((raw[0] <= u32::MAX as u64) as u8)
@@ -850,7 +927,7 @@ impl Field256 for Scalar {
     }
 
     fn try_to_u64(&self) -> CtOption<u64> {
-        let raw = self.to_raw_words();
+        let raw = self.to_raw_u64s();
         CtOption::new(
             raw[0],
             Choice::from((raw[1] == 0) as u8)
@@ -860,7 +937,7 @@ impl Field256 for Scalar {
     }
 
     fn try_to_u128(&self) -> CtOption<u128> {
-        let raw = self.to_raw_words();
+        let raw = self.to_raw_u64s();
         CtOption::new(
             (raw[1] as u128) << 64 | raw[0] as u128,
             Choice::from((raw[2] == 0) as u8) & Choice::from((raw[3] == 0) as u8),
@@ -877,25 +954,40 @@ impl PrimeField256 for Scalar {}
 impl ThreeAdicField for Scalar {
     const T: usize = 39;
 
-    const THREE_INV: Self = Self::from_raw_words([
-        0x8000000000000001u64,
-        0x044d3ea1bf1238dau64,
-        0x5555555555555554u64,
-        0x5555555555555555u64,
+    const THREE_INV: Self = Self([
+        0x0aaaaa96u32,
+        0x15555555u32,
+        0x1d720d4au32,
+        0x002a290eu32,
+        0x1557e255u32,
+        0x0aaaaaaau32,
+        0x15555555u32,
+        0x0aaaaaaau32,
+        0x00555555u32,
     ]);
 
-    const THREE_ADIC_ROOT_OF_UNITY: Self = Self::from_raw_words([
-        0xf1a4ca414adfd9e6u64,
-        0xe35f48642a417a72u64,
-        0xa98705fee2d66e8fu64,
-        0x1b6292b3a6f8a32du64,
+    const THREE_ADIC_ROOT_OF_UNITY: Self = Self([
+        0x14dbb390u32,
+        0x197af29cu32,
+        0x1a010c5du32,
+        0x174d6b5du32,
+        0x114941dau32,
+        0x1807a7ffu32,
+        0x1e87076au32,
+        0x0cbaa8abu32,
+        0x003b1f82u32,
     ]);
 
-    const THREE_ADIC_ROOT_OF_UNITY_INV: Self = Self::from_raw_words([
-        0xb5679e11c5dfdf72u64,
-        0xceae8164a047dff8u64,
-        0xa979a0ffb5545471u64,
-        0x4d369d8e1ff761fcu64,
+    const THREE_ADIC_ROOT_OF_UNITY_INV: Self = Self([
+        0x17882cabu32,
+        0x0a2ff058u32,
+        0x06c138fdu32,
+        0x1de90c4au32,
+        0x13c702beu32,
+        0x19d84adbu32,
+        0x10b900b2u32,
+        0x1749ebfbu32,
+        0x0030ffa3u32,
     ]);
 }
 
@@ -950,6 +1042,11 @@ mod tests {
         assert_ne!(modulus >> ((Scalar::LEN - 1) * 8), U256::zero());
         assert_eq!(modulus >> Scalar::NUM_BITS, U256::zero());
         assert_ne!(modulus >> (Scalar::NUM_BITS - 1), U256::zero());
+    }
+
+    #[test]
+    fn test_modulus29() {
+        assert_eq!(MODULUS29, from_u64s(MODULUS));
     }
 
     #[test]

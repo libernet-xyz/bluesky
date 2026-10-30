@@ -1,7 +1,7 @@
 //! Helpers for multi-precision arithmetic over 29-bit limbs.
 //!
-//! Limbs are stored in 32-bit words, and products of limbs are summed in 64-bit accumulators. A
-//! limb product takes at most 58 bits, so an accumulator can absorb up to 64 of them before
+//! Limbs are stored in `u32`s, and products of limbs are summed in `u64` accumulators. A limb
+//! product takes at most 58 bits, so an accumulator can absorb up to 64 of them before
 //! overflowing, which allows multiplication algorithms to defer carry propagation. That makes this
 //! representation a good fit for targets that lack a 64x64->128-bit multiplication and a carry
 //! flag, such as WebAssembly.
@@ -12,7 +12,7 @@
 /// The number of bits in a limb.
 pub const LIMB_BITS: u32 = 29;
 
-/// Selects the lower `LIMB_BITS` bits of a word.
+/// Selects the lower `LIMB_BITS` bits of a `u32`.
 pub const LIMB_MASK: u32 = (1 << LIMB_BITS) - 1;
 
 /// The number of limbs needed to store a 256-bit value.
@@ -41,7 +41,7 @@ const fn store_pair(limbs: &mut [u32; LIMBS], i: usize, value: u64) {
 /// Adds two numbers and returns the (sum, carry) pair, where the carry is 0 or 1.
 ///
 /// The limbs are added in pairs, so that the carry chain takes 5 steps rather than 9: a 58-bit pair
-/// leaves enough room in a 64-bit word to extract the carry with a shift.
+/// leaves enough room in a `u64` to extract the carry with a shift.
 #[inline(always)]
 pub const fn add_limbs(a: &[u32; LIMBS], b: &[u32; LIMBS]) -> ([u32; LIMBS], u32) {
     let mut sum = [0u32; LIMBS];
@@ -94,17 +94,17 @@ pub const fn split(value: u64) -> (u32, u64) {
     (value as u32 & LIMB_MASK, value >> LIMB_BITS)
 }
 
-/// Converts a 256-bit value from four 64-bit words to nine limbs, both in little-endian order.
-pub const fn from_words(words: [u64; 4]) -> [u32; LIMBS] {
+/// Converts a 256-bit value from four `u64`s to nine limbs, both in little-endian order.
+pub const fn from_u64s(u64s: [u64; 4]) -> [u32; LIMBS] {
     let mut limbs = [0u32; LIMBS];
     let mut i = 0;
     while i < LIMBS {
         let offset = i * LIMB_BITS as usize;
-        let word_index = offset / 64;
+        let u64_index = offset / 64;
         let shift = offset % 64;
-        let mut value = words[word_index] >> shift;
-        if shift + LIMB_BITS as usize > 64 && word_index + 1 < 4 {
-            value |= words[word_index + 1] << (64 - shift);
+        let mut value = u64s[u64_index] >> shift;
+        if shift + LIMB_BITS as usize > 64 && u64_index + 1 < 4 {
+            value |= u64s[u64_index + 1] << (64 - shift);
         }
         limbs[i] = value as u32 & LIMB_MASK;
         i += 1;
@@ -112,23 +112,23 @@ pub const fn from_words(words: [u64; 4]) -> [u32; LIMBS] {
     limbs
 }
 
-/// Converts nine limbs to four 64-bit words, both in little-endian order.
+/// Converts nine limbs to four `u64`s, both in little-endian order.
 ///
 /// Bits beyond the 256th are discarded.
-pub const fn to_words(limbs: [u32; LIMBS]) -> [u64; 4] {
-    let mut words = [0u64; 4];
+pub const fn to_u64s(limbs: [u32; LIMBS]) -> [u64; 4] {
+    let mut u64s = [0u64; 4];
     let mut i = 0;
     while i < LIMBS {
         let offset = i * LIMB_BITS as usize;
-        let word_index = offset / 64;
+        let u64_index = offset / 64;
         let shift = offset % 64;
-        words[word_index] |= (limbs[i] as u64) << shift;
-        if shift + LIMB_BITS as usize > 64 && word_index + 1 < 4 {
-            words[word_index + 1] |= (limbs[i] as u64) >> (64 - shift);
+        u64s[u64_index] |= (limbs[i] as u64) << shift;
+        if shift + LIMB_BITS as usize > 64 && u64_index + 1 < 4 {
+            u64s[u64_index + 1] |= (limbs[i] as u64) >> (64 - shift);
         }
         i += 1;
     }
-    words
+    u64s
 }
 
 #[cfg(test)]
@@ -291,11 +291,11 @@ mod tests {
     }
 
     #[test]
-    fn test_from_words() {
-        assert_eq!(from_words([0, 0, 0, 0]), [0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        assert_eq!(from_words([1, 0, 0, 0]), [1, 0, 0, 0, 0, 0, 0, 0, 0]);
+    fn test_from_u64s() {
+        assert_eq!(from_u64s([0, 0, 0, 0]), [0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(from_u64s([1, 0, 0, 0]), [1, 0, 0, 0, 0, 0, 0, 0, 0]);
         assert_eq!(
-            from_words([
+            from_u64s([
                 0x8796a5b4c3d2e1f0,
                 0x0f1e2d3c4b5a6978,
                 0xfedcba9876543210,
@@ -307,7 +307,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            from_words([
+            from_u64s([
                 0xc000000000000001,
                 0x0673ddf29e9b5547,
                 0xfffffffffffffffe,
@@ -319,7 +319,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            from_words([u64::MAX, u64::MAX, u64::MAX, u64::MAX]),
+            from_u64s([u64::MAX, u64::MAX, u64::MAX, u64::MAX]),
             [
                 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff,
                 0x1fffffff, 0x00ffffff,
@@ -328,11 +328,11 @@ mod tests {
     }
 
     #[test]
-    fn test_to_words() {
-        assert_eq!(to_words([0, 0, 0, 0, 0, 0, 0, 0, 0]), [0, 0, 0, 0]);
-        assert_eq!(to_words([1, 0, 0, 0, 0, 0, 0, 0, 0]), [1, 0, 0, 0]);
+    fn test_to_u64s() {
+        assert_eq!(to_u64s([0, 0, 0, 0, 0, 0, 0, 0, 0]), [0, 0, 0, 0]);
+        assert_eq!(to_u64s([1, 0, 0, 0, 0, 0, 0, 0, 0]), [1, 0, 0, 0]);
         assert_eq!(
-            to_words([
+            to_u64s([
                 0x03d2e1f0, 0x1cb52da6, 0x169a5e21, 0x1c5a7896, 0x032100f1, 0x1d4c3b2a, 0x17bffb72,
                 0x0cf13579, 0x00012345,
             ]),
@@ -344,7 +344,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            to_words([
+            to_u64s([
                 0x00000001, 0x00000000, 0x06d551f0, 0x07bbe53d, 0x1fffe067, 0x1fffffff, 0x1fffffff,
                 0x1fffffff, 0x007fffff,
             ]),
@@ -356,7 +356,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            to_words([
+            to_u64s([
                 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff,
                 0x1fffffff, 0x00ffffff,
             ]),
@@ -365,9 +365,9 @@ mod tests {
     }
 
     #[test]
-    fn test_to_words_discards_high_bits() {
+    fn test_to_u64s_discards_high_bits() {
         assert_eq!(
-            to_words([LIMB_MASK, 0, 0, 0, 0, 0, 0, 0, LIMB_MASK]),
+            to_u64s([LIMB_MASK, 0, 0, 0, 0, 0, 0, 0, LIMB_MASK]),
             [0x000000001fffffff, 0, 0, 0xffffff0000000000]
         );
     }
