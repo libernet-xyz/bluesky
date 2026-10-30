@@ -3,6 +3,17 @@
 
 #![doc = include_str!("../README.md")]
 
-mod bluesky;
+#[cfg(any(target_arch = "wasm32", test))]
+mod helpers29;
 
-pub use bluesky::*;
+#[cfg(any(target_arch = "wasm32", test))]
+mod scalar29;
+
+#[cfg(any(not(target_arch = "wasm32"), test))]
+mod scalar64;
+
+#[cfg(target_arch = "wasm32")]
+pub use scalar29::*;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use scalar64::*;
