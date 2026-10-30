@@ -747,16 +747,8 @@ impl ConstantTimeGreater for Scalar {
     fn ct_gt(&self, other: &Self) -> Choice {
         let lhs = self.to_raw();
         let rhs = other.to_raw();
-        let mut greater = lhs.0.ct_gt(&rhs.0);
-        greater = lhs.1.ct_gt(&rhs.1) | lhs.1.ct_eq(&rhs.1) & greater;
-        greater = lhs.2.ct_gt(&rhs.2) | lhs.2.ct_eq(&rhs.2) & greater;
-        greater = lhs.3.ct_gt(&rhs.3) | lhs.3.ct_eq(&rhs.3) & greater;
-        greater = lhs.4.ct_gt(&rhs.4) | lhs.4.ct_eq(&rhs.4) & greater;
-        greater = lhs.5.ct_gt(&rhs.5) | lhs.5.ct_eq(&rhs.5) & greater;
-        greater = lhs.6.ct_gt(&rhs.6) | lhs.6.ct_eq(&rhs.6) & greater;
-        greater = lhs.7.ct_gt(&rhs.7) | lhs.7.ct_eq(&rhs.7) & greater;
-        greater = lhs.8.ct_gt(&rhs.8) | lhs.8.ct_eq(&rhs.8) & greater;
-        greater
+        let (_, borrow) = rhs.sub_limbs(&lhs);
+        Choice::from(borrow as u8)
     }
 }
 
@@ -2022,6 +2014,69 @@ mod tests {
         assert_eq!(bool::from(v0.ct_gt(&v4)), false);
         assert_eq!(bool::from(v1.ct_gt(&v2)), false);
         assert_eq!(bool::from(v3.ct_gt(&v4)), false);
+    }
+
+    #[test]
+    fn test_ct_gt_limb_boundaries() {
+        assert_eq!(
+            bool::from(parse_scalar("0x20000000").ct_gt(&parse_scalar("0x1fffffff"))),
+            true
+        );
+        assert_eq!(
+            bool::from(parse_scalar("0x1fffffff").ct_gt(&parse_scalar("0x20000000"))),
+            false
+        );
+        assert_eq!(
+            bool::from(parse_scalar("0x400000000000000").ct_gt(&parse_scalar("0x3ffffffffffffff"))),
+            true
+        );
+        assert_eq!(
+            bool::from(parse_scalar("0x3ffffffffffffff").ct_gt(&parse_scalar("0x400000000000000"))),
+            false
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0x10000000000000000").ct_gt(&parse_scalar("0xffffffffffffffff"))
+            ),
+            true
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0xffffffffffffffff").ct_gt(&parse_scalar("0x10000000000000000"))
+            ),
+            false
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0x100000000000000000000000000000000")
+                    .ct_gt(&parse_scalar("0xffffffffffffffffffffffffffffffff"))
+            ),
+            true
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0xffffffffffffffffffffffffffffffff")
+                    .ct_gt(&parse_scalar("0x100000000000000000000000000000000"))
+            ),
+            false
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0x10000000000000000000000000000000000000000000000000000000000")
+                    .ct_gt(&parse_scalar(
+                        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                    ))
+            ),
+            true
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").ct_gt(
+                    &parse_scalar("0x10000000000000000000000000000000000000000000000000000000000")
+                )
+            ),
+            false
+        );
     }
 
     #[test]

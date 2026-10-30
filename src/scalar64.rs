@@ -1296,6 +1296,69 @@ mod tests {
     }
 
     #[test]
+    fn test_ct_gt_limb_boundaries() {
+        assert_eq!(
+            bool::from(parse_scalar("0x20000000").ct_gt(&parse_scalar("0x1fffffff"))),
+            true
+        );
+        assert_eq!(
+            bool::from(parse_scalar("0x1fffffff").ct_gt(&parse_scalar("0x20000000"))),
+            false
+        );
+        assert_eq!(
+            bool::from(parse_scalar("0x400000000000000").ct_gt(&parse_scalar("0x3ffffffffffffff"))),
+            true
+        );
+        assert_eq!(
+            bool::from(parse_scalar("0x3ffffffffffffff").ct_gt(&parse_scalar("0x400000000000000"))),
+            false
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0x10000000000000000").ct_gt(&parse_scalar("0xffffffffffffffff"))
+            ),
+            true
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0xffffffffffffffff").ct_gt(&parse_scalar("0x10000000000000000"))
+            ),
+            false
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0x100000000000000000000000000000000")
+                    .ct_gt(&parse_scalar("0xffffffffffffffffffffffffffffffff"))
+            ),
+            true
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0xffffffffffffffffffffffffffffffff")
+                    .ct_gt(&parse_scalar("0x100000000000000000000000000000000"))
+            ),
+            false
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0x10000000000000000000000000000000000000000000000000000000000")
+                    .ct_gt(&parse_scalar(
+                        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                    ))
+            ),
+            true
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").ct_gt(
+                    &parse_scalar("0x10000000000000000000000000000000000000000000000000000000000")
+                )
+            ),
+            false
+        );
+    }
+
+    #[test]
     fn test_ct_lt() {
         let v0 = from_const(0);
         let v1 = from_const(1);
