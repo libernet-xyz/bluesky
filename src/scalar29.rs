@@ -216,50 +216,50 @@ impl Scalar {
     /// function processes the limbs in pairs to shorten the borrow chain.
     #[inline(always)]
     const fn sub_limbs(&self, rhs: &Self) -> (Self, u32) {
-        let difference01 = join(self.0, self.1).wrapping_sub(join(rhs.0, rhs.1));
-        let difference23 = join(self.2, self.3)
+        let diff01 = join(self.0, self.1).wrapping_sub(join(rhs.0, rhs.1));
+        let diff23 = join(self.2, self.3)
             .wrapping_sub(join(rhs.2, rhs.3))
-            .wrapping_sub(difference01 >> 63);
-        let difference45 = join(self.4, self.5)
+            .wrapping_sub(diff01 >> 63);
+        let diff45 = join(self.4, self.5)
             .wrapping_sub(join(rhs.4, rhs.5))
-            .wrapping_sub(difference23 >> 63);
-        let difference67 = join(self.6, self.7)
+            .wrapping_sub(diff23 >> 63);
+        let diff67 = join(self.6, self.7)
             .wrapping_sub(join(rhs.6, rhs.7))
-            .wrapping_sub(difference45 >> 63);
-        let difference8 = (self.8 as u64)
+            .wrapping_sub(diff45 >> 63);
+        let diff8 = (self.8 as u64)
             .wrapping_sub(rhs.8 as u64)
-            .wrapping_sub(difference67 >> 63);
+            .wrapping_sub(diff67 >> 63);
         (
             Self(
-                low_limb(difference01),
-                high_limb(difference01),
-                low_limb(difference23),
-                high_limb(difference23),
-                low_limb(difference45),
-                high_limb(difference45),
-                low_limb(difference67),
-                high_limb(difference67),
-                low_limb(difference8),
+                low_limb(diff01),
+                high_limb(diff01),
+                low_limb(diff23),
+                high_limb(diff23),
+                low_limb(diff45),
+                high_limb(diff45),
+                low_limb(diff67),
+                high_limb(diff67),
+                low_limb(diff8),
             ),
-            (difference8 >> 63) as u32,
+            (diff8 >> 63) as u32,
         )
     }
 
     /// Brings a value in the range [0, 2p) back into [0, p) by subtracting p if necessary.
     const fn modp(self) -> Self {
-        let (difference, borrow) = self.sub_limbs(&Self::P);
+        let (diff, borrow) = self.sub_limbs(&Self::P);
         // The borrow is 1 iff `self` is less than p, in which case we must keep it.
         let keep = 0u32.wrapping_sub(borrow);
         Self(
-            (self.0 & keep) | (difference.0 & !keep),
-            (self.1 & keep) | (difference.1 & !keep),
-            (self.2 & keep) | (difference.2 & !keep),
-            (self.3 & keep) | (difference.3 & !keep),
-            (self.4 & keep) | (difference.4 & !keep),
-            (self.5 & keep) | (difference.5 & !keep),
-            (self.6 & keep) | (difference.6 & !keep),
-            (self.7 & keep) | (difference.7 & !keep),
-            (self.8 & keep) | (difference.8 & !keep),
+            (self.0 & keep) | (diff.0 & !keep),
+            (self.1 & keep) | (diff.1 & !keep),
+            (self.2 & keep) | (diff.2 & !keep),
+            (self.3 & keep) | (diff.3 & !keep),
+            (self.4 & keep) | (diff.4 & !keep),
+            (self.5 & keep) | (diff.5 & !keep),
+            (self.6 & keep) | (diff.6 & !keep),
+            (self.7 & keep) | (diff.7 & !keep),
+            (self.8 & keep) | (diff.8 & !keep),
         )
     }
 
@@ -814,8 +814,8 @@ impl Neg for Scalar {
         if self.is_zero().into() {
             return self;
         }
-        let (difference, _) = Self::P.sub_limbs(&self);
-        difference
+        let (diff, _) = Self::P.sub_limbs(&self);
+        diff
     }
 }
 
@@ -823,7 +823,7 @@ impl Sub<&Scalar> for Scalar {
     type Output = Self;
 
     fn sub(self, rhs: &Self) -> Self::Output {
-        let (difference, borrow) = self.sub_limbs(rhs);
+        let (diff, borrow) = self.sub_limbs(rhs);
         // If the subtraction wrapped around 2^261 we add p, and the final carry wraps it back.
         let mask = 0u32.wrapping_sub(borrow);
         let correction = Self(
@@ -837,7 +837,7 @@ impl Sub<&Scalar> for Scalar {
             Self::P.7 & mask,
             Self::P.8 & mask,
         );
-        let (result, _) = difference.add_limbs(&correction);
+        let (result, _) = diff.add_limbs(&correction);
         result
     }
 }
@@ -2304,6 +2304,59 @@ mod tests {
             parse_scalar("0x233f7c593e331b2e1285f17013cd4b692d7219c10bf06adca229780913851577"),
             parse_scalar("0x4433ff6315d939cda16f055756432036cab445af8186bc60b243127905b84c73"),
             parse_scalar("0x6bb08da54b6c7a0760e3a845a73c45dd643d18fd594ddee7c1ab58c4af38310b"),
+        );
+    }
+
+    #[test]
+    fn test_mul_max() {
+        assert_eq!(Scalar::MAX * Scalar::MAX, Scalar::ONE);
+        assert_eq!(Scalar::MAX.square(), Scalar::ONE);
+        assert_eq!(Scalar::MAX * Scalar::MINUS_TWO, from_const(2));
+        assert_eq!(Scalar::MINUS_TWO * Scalar::MINUS_TWO, from_const(4));
+    }
+
+    #[test]
+    fn test_mont_mul_largest_limbs() {
+        // The largest limbs a canonical value can have: all ones except for the top one.
+        let value = Scalar(
+            0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff, 0x1fffffff,
+            0x1fffffff, 0x007ffffe,
+        );
+        assert_eq!(
+            Scalar::mont_mul(&value, &value),
+            Scalar(
+                0x1255cb62, 0x1fac1d68, 0x0581908b, 0x18507967, 0x0d318f73, 0x148ea81b, 0x0a8960f5,
+                0x1583b456, 0x00269d8b,
+            )
+        );
+        assert_eq!(
+            Scalar::mont_mul(&value, &Scalar::MAX_RAW),
+            Scalar(
+                0x1255cb62, 0x0e816f58, 0x0ea22081, 0x04b16a39, 0x0d318ff2, 0x148ea81b, 0x0a8960f5,
+                0x1703b455, 0x00229d8b,
+            )
+        );
+    }
+
+    #[test]
+    fn test_modp() {
+        assert_eq!(Scalar::ZERO.modp(), Scalar::ZERO);
+        assert_eq!(Scalar::MAX_RAW.modp(), Scalar::MAX_RAW);
+        assert_eq!(
+            Scalar(
+                0x00000001, 0x00000000, 0x06d551f0, 0x07bbe53d, 0x1fffe067, 0x1fffffff, 0x1fffffff,
+                0x1fffffff, 0x007fffff,
+            )
+            .modp(),
+            Scalar::ZERO
+        );
+        assert_eq!(
+            Scalar(
+                0x00000001, 0x00000000, 0x0daaa3e0, 0x0f77ca7a, 0x1fffc0ce, 0x1fffffff, 0x1fffffff,
+                0x1fffffff, 0x00ffffff,
+            )
+            .modp(),
+            Scalar::MAX_RAW
         );
     }
 

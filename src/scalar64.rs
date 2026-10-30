@@ -1579,6 +1579,69 @@ mod tests {
     }
 
     #[test]
+    fn test_mul_max() {
+        assert_eq!(Scalar::MAX * Scalar::MAX, Scalar::ONE);
+        assert_eq!(Scalar::MAX.square(), Scalar::ONE);
+        assert_eq!(Scalar::MAX * Scalar::MINUS_TWO, from_const(2));
+        assert_eq!(Scalar::MINUS_TWO * Scalar::MINUS_TWO, from_const(4));
+    }
+
+    #[test]
+    fn test_mont_mul_largest_limbs() {
+        // The largest limbs a canonical value can have: all ones except for the top one.
+        let value = Scalar(
+            0xffffffffffffffff,
+            0xffffffffffffffff,
+            0xffffffffffffffff,
+            0x7ffffffffffffffe,
+        );
+        assert_eq!(
+            Scalar::mont_mul(&value, &value),
+            Scalar(
+                0x8873493d0d82c1a7,
+                0xaa38472277b9035d,
+                0x07ad23aa06da6332,
+                0x13b17783b4555449,
+            )
+        );
+        assert_eq!(
+            Scalar::mont_mul(&value, &Scalar::MAX_RAW),
+            Scalar(
+                0x5ee7272fac1e16f0,
+                0x2f0f2d986ead8351,
+                0x87ad23aa06da6330,
+                0x33b17783b455544a,
+            )
+        );
+    }
+
+    #[test]
+    fn test_modp() {
+        assert_eq!(Scalar::ZERO.modp(), Scalar::ZERO);
+        assert_eq!(Scalar::MAX_RAW.modp(), Scalar::MAX_RAW);
+        assert_eq!(
+            Scalar(
+                0xc000000000000001,
+                0x0673ddf29e9b5547,
+                0xfffffffffffffffe,
+                0x7fffffffffffffff,
+            )
+            .modp(),
+            Scalar::ZERO
+        );
+        assert_eq!(
+            Scalar(
+                0x8000000000000001,
+                0x0ce7bbe53d36aa8f,
+                0xfffffffffffffffc,
+                0xffffffffffffffff,
+            )
+            .modp(),
+            Scalar::MAX_RAW
+        );
+    }
+
+    #[test]
     fn test_div_by_one() {
         assert_eq!(Scalar::ONE / from_const(42), from_const(42).invert_unwrap());
         assert_eq!(
