@@ -150,10 +150,6 @@ impl Scalar {
         0x007fffffu32,
     );
 
-    /// -p^-1 mod 2^29. It's 2^29-1 because p = 1 mod 2^62, so the factor of every Montgomery
-    /// reduction step boils down to a negation.
-    const P_INV: u32 = 0x1fffffff;
-
     /// Constructs a scalar from a 256-bit value provided as four `u64`s in little-endian order,
     /// without converting it to Montgomery form.
     const fn from_u64s(u64s: [u64; 4]) -> Self {
@@ -423,12 +419,13 @@ impl Scalar {
     /// exceeds `18 * 2^58 + 2^35 < 2^64`.
     ///
     /// In row `i`, adding `m` times p zeroes the lower 29 bits of column `i`, so its carry moves up
-    /// into column `i + 1` exactly.
+    /// into column `i + 1` exactly. In general `m = -p^-1 * col[i] mod 2^29`, but p = 1 mod 2^62, so
+    /// `-p^-1 = -1 mod 2^29` and `m` is just the negation of column `i` modulo 2^29.
     const fn mont_reduce(mut col: [u64; 2 * LIMBS]) -> Self {
         let mut m: u32;
 
         // row 0
-        m = (col[0] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        m = (col[0] as u32).wrapping_neg() & LIMB_MASK;
         col[0] = mac(col[0], m, Self::P.0);
         col[1] = mac(col[1], m, Self::P.1);
         col[2] = mac(col[2], m, Self::P.2);
@@ -441,7 +438,7 @@ impl Scalar {
         col[1] += col[0] >> LIMB_BITS;
 
         // row 1
-        m = (col[1] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        m = (col[1] as u32).wrapping_neg() & LIMB_MASK;
         col[1] = mac(col[1], m, Self::P.0);
         col[2] = mac(col[2], m, Self::P.1);
         col[3] = mac(col[3], m, Self::P.2);
@@ -454,7 +451,7 @@ impl Scalar {
         col[2] += col[1] >> LIMB_BITS;
 
         // row 2
-        m = (col[2] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        m = (col[2] as u32).wrapping_neg() & LIMB_MASK;
         col[2] = mac(col[2], m, Self::P.0);
         col[3] = mac(col[3], m, Self::P.1);
         col[4] = mac(col[4], m, Self::P.2);
@@ -467,7 +464,7 @@ impl Scalar {
         col[3] += col[2] >> LIMB_BITS;
 
         // row 3
-        m = (col[3] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        m = (col[3] as u32).wrapping_neg() & LIMB_MASK;
         col[3] = mac(col[3], m, Self::P.0);
         col[4] = mac(col[4], m, Self::P.1);
         col[5] = mac(col[5], m, Self::P.2);
@@ -480,7 +477,7 @@ impl Scalar {
         col[4] += col[3] >> LIMB_BITS;
 
         // row 4
-        m = (col[4] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        m = (col[4] as u32).wrapping_neg() & LIMB_MASK;
         col[4] = mac(col[4], m, Self::P.0);
         col[5] = mac(col[5], m, Self::P.1);
         col[6] = mac(col[6], m, Self::P.2);
@@ -493,7 +490,7 @@ impl Scalar {
         col[5] += col[4] >> LIMB_BITS;
 
         // row 5
-        m = (col[5] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        m = (col[5] as u32).wrapping_neg() & LIMB_MASK;
         col[5] = mac(col[5], m, Self::P.0);
         col[6] = mac(col[6], m, Self::P.1);
         col[7] = mac(col[7], m, Self::P.2);
@@ -506,7 +503,7 @@ impl Scalar {
         col[6] += col[5] >> LIMB_BITS;
 
         // row 6
-        m = (col[6] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        m = (col[6] as u32).wrapping_neg() & LIMB_MASK;
         col[6] = mac(col[6], m, Self::P.0);
         col[7] = mac(col[7], m, Self::P.1);
         col[8] = mac(col[8], m, Self::P.2);
@@ -519,7 +516,7 @@ impl Scalar {
         col[7] += col[6] >> LIMB_BITS;
 
         // row 7
-        m = (col[7] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        m = (col[7] as u32).wrapping_neg() & LIMB_MASK;
         col[7] = mac(col[7], m, Self::P.0);
         col[8] = mac(col[8], m, Self::P.1);
         col[9] = mac(col[9], m, Self::P.2);
@@ -532,7 +529,7 @@ impl Scalar {
         col[8] += col[7] >> LIMB_BITS;
 
         // row 8
-        m = (col[8] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        m = (col[8] as u32).wrapping_neg() & LIMB_MASK;
         col[8] = mac(col[8], m, Self::P.0);
         col[9] = mac(col[9], m, Self::P.1);
         col[10] = mac(col[10], m, Self::P.2);
