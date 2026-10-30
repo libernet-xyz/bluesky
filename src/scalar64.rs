@@ -702,7 +702,7 @@ impl Field for Scalar {
     );
 
     fn is_odd(&self) -> Choice {
-        (self.to_le_bytes()[0] & 1).into()
+        Choice::from((self.to_raw().0 & 1) as u8)
     }
 
     fn try_random<R: rand_core::TryCryptoRng>(rng: &mut R) -> Result<Self, R::Error> {
@@ -866,13 +866,13 @@ impl Field for Scalar {
     }
 
     fn to_u256(&self) -> U256 {
-        U256::from_little_endian(&self.to_le_bytes())
+        let raw = self.to_raw();
+        U256([raw.0, raw.1, raw.2, raw.3])
     }
 
     fn to_u512(&self) -> U512 {
-        let mut bytes = [0u8; 64];
-        bytes[0..32].copy_from_slice(&self.to_le_bytes());
-        U512::from_little_endian(&bytes)
+        let raw = self.to_raw();
+        U512([raw.0, raw.1, raw.2, raw.3, 0, 0, 0, 0])
     }
 }
 
