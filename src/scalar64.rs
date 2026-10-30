@@ -702,7 +702,7 @@ impl Field for Scalar {
     );
 
     fn is_odd(&self) -> Choice {
-        (self.to_le_bytes()[0] & 1).into()
+        Choice::from((self.to_raw().0 & 1) as u8)
     }
 
     fn try_random<R: rand_core::TryCryptoRng>(rng: &mut R) -> Result<Self, R::Error> {
@@ -866,13 +866,13 @@ impl Field for Scalar {
     }
 
     fn to_u256(&self) -> U256 {
-        U256::from_little_endian(&self.to_le_bytes())
+        let raw = self.to_raw();
+        U256([raw.0, raw.1, raw.2, raw.3])
     }
 
     fn to_u512(&self) -> U512 {
-        let mut bytes = [0u8; 64];
-        bytes[0..32].copy_from_slice(&self.to_le_bytes());
-        U512::from_little_endian(&bytes)
+        let raw = self.to_raw();
+        U512([raw.0, raw.1, raw.2, raw.3, 0, 0, 0, 0])
     }
 }
 
@@ -1296,6 +1296,69 @@ mod tests {
     }
 
     #[test]
+    fn test_ct_gt_limb_boundaries() {
+        assert_eq!(
+            bool::from(parse_scalar("0x20000000").ct_gt(&parse_scalar("0x1fffffff"))),
+            true
+        );
+        assert_eq!(
+            bool::from(parse_scalar("0x1fffffff").ct_gt(&parse_scalar("0x20000000"))),
+            false
+        );
+        assert_eq!(
+            bool::from(parse_scalar("0x400000000000000").ct_gt(&parse_scalar("0x3ffffffffffffff"))),
+            true
+        );
+        assert_eq!(
+            bool::from(parse_scalar("0x3ffffffffffffff").ct_gt(&parse_scalar("0x400000000000000"))),
+            false
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0x10000000000000000").ct_gt(&parse_scalar("0xffffffffffffffff"))
+            ),
+            true
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0xffffffffffffffff").ct_gt(&parse_scalar("0x10000000000000000"))
+            ),
+            false
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0x100000000000000000000000000000000")
+                    .ct_gt(&parse_scalar("0xffffffffffffffffffffffffffffffff"))
+            ),
+            true
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0xffffffffffffffffffffffffffffffff")
+                    .ct_gt(&parse_scalar("0x100000000000000000000000000000000"))
+            ),
+            false
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0x10000000000000000000000000000000000000000000000000000000000")
+                    .ct_gt(&parse_scalar(
+                        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                    ))
+            ),
+            true
+        );
+        assert_eq!(
+            bool::from(
+                parse_scalar("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").ct_gt(
+                    &parse_scalar("0x10000000000000000000000000000000000000000000000000000000000")
+                )
+            ),
+            false
+        );
+    }
+
+    #[test]
     fn test_ct_lt() {
         let v0 = from_const(0);
         let v1 = from_const(1);
@@ -1575,6 +1638,69 @@ mod tests {
             parse_scalar("0x233f7c593e331b2e1285f17013cd4b692d7219c10bf06adca229780913851577"),
             parse_scalar("0x4433ff6315d939cda16f055756432036cab445af8186bc60b243127905b84c73"),
             parse_scalar("0x6bb08da54b6c7a0760e3a845a73c45dd643d18fd594ddee7c1ab58c4af38310b"),
+        );
+    }
+
+    #[test]
+    fn test_mul_max() {
+        assert_eq!(Scalar::MAX * Scalar::MAX, Scalar::ONE);
+        assert_eq!(Scalar::MAX.square(), Scalar::ONE);
+        assert_eq!(Scalar::MAX * Scalar::MINUS_TWO, from_const(2));
+        assert_eq!(Scalar::MINUS_TWO * Scalar::MINUS_TWO, from_const(4));
+    }
+
+    #[test]
+    fn test_mont_mul_largest_limbs() {
+        // The largest limbs a canonical value can have: all ones except for the top one.
+        let value = Scalar(
+            0xffffffffffffffff,
+            0xffffffffffffffff,
+            0xffffffffffffffff,
+            0x7ffffffffffffffe,
+        );
+        assert_eq!(
+            Scalar::mont_mul(&value, &value),
+            Scalar(
+                0x8873493d0d82c1a7,
+                0xaa38472277b9035d,
+                0x07ad23aa06da6332,
+                0x13b17783b4555449,
+            )
+        );
+        assert_eq!(
+            Scalar::mont_mul(&value, &Scalar::MAX_RAW),
+            Scalar(
+                0x5ee7272fac1e16f0,
+                0x2f0f2d986ead8351,
+                0x87ad23aa06da6330,
+                0x33b17783b455544a,
+            )
+        );
+    }
+
+    #[test]
+    fn test_modp() {
+        assert_eq!(Scalar::ZERO.modp(), Scalar::ZERO);
+        assert_eq!(Scalar::MAX_RAW.modp(), Scalar::MAX_RAW);
+        assert_eq!(
+            Scalar(
+                0xc000000000000001,
+                0x0673ddf29e9b5547,
+                0xfffffffffffffffe,
+                0x7fffffffffffffff,
+            )
+            .modp(),
+            Scalar::ZERO
+        );
+        assert_eq!(
+            Scalar(
+                0x8000000000000001,
+                0x0ce7bbe53d36aa8f,
+                0xfffffffffffffffc,
+                0xffffffffffffffff,
+            )
+            .modp(),
+            Scalar::MAX_RAW
         );
     }
 
