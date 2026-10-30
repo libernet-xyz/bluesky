@@ -4,9 +4,6 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(any(target_arch = "wasm32", test))]
-mod helpers29;
-
-#[cfg(any(target_arch = "wasm32", test))]
 mod scalar29;
 
 #[cfg(any(not(target_arch = "wasm32"), test))]
