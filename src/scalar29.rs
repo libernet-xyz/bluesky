@@ -1,5 +1,5 @@
 use crate::helpers29::{
-    LIMB_BITS, LIMB_MASK, LIMBS, PAIR_BITS, high_limb, join_pair, low_limb, mac, split,
+    LIMB_BITS, LIMB_MASK, LIMBS, PAIR_BITS, high_limb, join, low_limb, mac, split,
 };
 use anyhow::{self, Context};
 use getrandom;
@@ -137,10 +137,10 @@ impl Scalar {
     /// pair leaves enough room in a `u64` to extract the carry with a shift.
     #[inline(always)]
     const fn add_limbs(&self, rhs: &Self) -> (Self, u32) {
-        let sum01 = join_pair(self.0, self.1) + join_pair(rhs.0, rhs.1);
-        let sum23 = join_pair(self.2, self.3) + join_pair(rhs.2, rhs.3) + (sum01 >> PAIR_BITS);
-        let sum45 = join_pair(self.4, self.5) + join_pair(rhs.4, rhs.5) + (sum23 >> PAIR_BITS);
-        let sum67 = join_pair(self.6, self.7) + join_pair(rhs.6, rhs.7) + (sum45 >> PAIR_BITS);
+        let sum01 = join(self.0, self.1) + join(rhs.0, rhs.1);
+        let sum23 = join(self.2, self.3) + join(rhs.2, rhs.3) + (sum01 >> PAIR_BITS);
+        let sum45 = join(self.4, self.5) + join(rhs.4, rhs.5) + (sum23 >> PAIR_BITS);
+        let sum67 = join(self.6, self.7) + join(rhs.6, rhs.7) + (sum45 >> PAIR_BITS);
         let sum8 = self.8 as u64 + rhs.8 as u64 + (sum67 >> PAIR_BITS);
         (
             Self(
@@ -165,15 +165,15 @@ impl Scalar {
     /// function processes the limbs in pairs to shorten the borrow chain.
     #[inline(always)]
     const fn sub_limbs(&self, rhs: &Self) -> (Self, u32) {
-        let difference01 = join_pair(self.0, self.1).wrapping_sub(join_pair(rhs.0, rhs.1));
-        let difference23 = join_pair(self.2, self.3)
-            .wrapping_sub(join_pair(rhs.2, rhs.3))
+        let difference01 = join(self.0, self.1).wrapping_sub(join(rhs.0, rhs.1));
+        let difference23 = join(self.2, self.3)
+            .wrapping_sub(join(rhs.2, rhs.3))
             .wrapping_sub(difference01 >> 63);
-        let difference45 = join_pair(self.4, self.5)
-            .wrapping_sub(join_pair(rhs.4, rhs.5))
+        let difference45 = join(self.4, self.5)
+            .wrapping_sub(join(rhs.4, rhs.5))
             .wrapping_sub(difference23 >> 63);
-        let difference67 = join_pair(self.6, self.7)
-            .wrapping_sub(join_pair(rhs.6, rhs.7))
+        let difference67 = join(self.6, self.7)
+            .wrapping_sub(join(rhs.6, rhs.7))
             .wrapping_sub(difference45 >> 63);
         let difference8 = (self.8 as u64)
             .wrapping_sub(rhs.8 as u64)
@@ -260,108 +260,108 @@ impl Scalar {
     /// All 81 limb products are summed into 18 column accumulators without propagating any carry,
     /// then [`Self::mont_reduce`] divides the result by R modulo p.
     const fn mont_mul(lhs: &Self, rhs: &Self) -> Self {
-        let mut columns = [0u64; 2 * LIMBS];
+        let mut col = [0u64; 2 * LIMBS];
 
         // row 0
-        columns[0] = mac(columns[0], lhs.0, rhs.0);
-        columns[1] = mac(columns[1], lhs.0, rhs.1);
-        columns[2] = mac(columns[2], lhs.0, rhs.2);
-        columns[3] = mac(columns[3], lhs.0, rhs.3);
-        columns[4] = mac(columns[4], lhs.0, rhs.4);
-        columns[5] = mac(columns[5], lhs.0, rhs.5);
-        columns[6] = mac(columns[6], lhs.0, rhs.6);
-        columns[7] = mac(columns[7], lhs.0, rhs.7);
-        columns[8] = mac(columns[8], lhs.0, rhs.8);
+        col[0] = mac(col[0], lhs.0, rhs.0);
+        col[1] = mac(col[1], lhs.0, rhs.1);
+        col[2] = mac(col[2], lhs.0, rhs.2);
+        col[3] = mac(col[3], lhs.0, rhs.3);
+        col[4] = mac(col[4], lhs.0, rhs.4);
+        col[5] = mac(col[5], lhs.0, rhs.5);
+        col[6] = mac(col[6], lhs.0, rhs.6);
+        col[7] = mac(col[7], lhs.0, rhs.7);
+        col[8] = mac(col[8], lhs.0, rhs.8);
 
         // row 1
-        columns[1] = mac(columns[1], lhs.1, rhs.0);
-        columns[2] = mac(columns[2], lhs.1, rhs.1);
-        columns[3] = mac(columns[3], lhs.1, rhs.2);
-        columns[4] = mac(columns[4], lhs.1, rhs.3);
-        columns[5] = mac(columns[5], lhs.1, rhs.4);
-        columns[6] = mac(columns[6], lhs.1, rhs.5);
-        columns[7] = mac(columns[7], lhs.1, rhs.6);
-        columns[8] = mac(columns[8], lhs.1, rhs.7);
-        columns[9] = mac(columns[9], lhs.1, rhs.8);
+        col[1] = mac(col[1], lhs.1, rhs.0);
+        col[2] = mac(col[2], lhs.1, rhs.1);
+        col[3] = mac(col[3], lhs.1, rhs.2);
+        col[4] = mac(col[4], lhs.1, rhs.3);
+        col[5] = mac(col[5], lhs.1, rhs.4);
+        col[6] = mac(col[6], lhs.1, rhs.5);
+        col[7] = mac(col[7], lhs.1, rhs.6);
+        col[8] = mac(col[8], lhs.1, rhs.7);
+        col[9] = mac(col[9], lhs.1, rhs.8);
 
         // row 2
-        columns[2] = mac(columns[2], lhs.2, rhs.0);
-        columns[3] = mac(columns[3], lhs.2, rhs.1);
-        columns[4] = mac(columns[4], lhs.2, rhs.2);
-        columns[5] = mac(columns[5], lhs.2, rhs.3);
-        columns[6] = mac(columns[6], lhs.2, rhs.4);
-        columns[7] = mac(columns[7], lhs.2, rhs.5);
-        columns[8] = mac(columns[8], lhs.2, rhs.6);
-        columns[9] = mac(columns[9], lhs.2, rhs.7);
-        columns[10] = mac(columns[10], lhs.2, rhs.8);
+        col[2] = mac(col[2], lhs.2, rhs.0);
+        col[3] = mac(col[3], lhs.2, rhs.1);
+        col[4] = mac(col[4], lhs.2, rhs.2);
+        col[5] = mac(col[5], lhs.2, rhs.3);
+        col[6] = mac(col[6], lhs.2, rhs.4);
+        col[7] = mac(col[7], lhs.2, rhs.5);
+        col[8] = mac(col[8], lhs.2, rhs.6);
+        col[9] = mac(col[9], lhs.2, rhs.7);
+        col[10] = mac(col[10], lhs.2, rhs.8);
 
         // row 3
-        columns[3] = mac(columns[3], lhs.3, rhs.0);
-        columns[4] = mac(columns[4], lhs.3, rhs.1);
-        columns[5] = mac(columns[5], lhs.3, rhs.2);
-        columns[6] = mac(columns[6], lhs.3, rhs.3);
-        columns[7] = mac(columns[7], lhs.3, rhs.4);
-        columns[8] = mac(columns[8], lhs.3, rhs.5);
-        columns[9] = mac(columns[9], lhs.3, rhs.6);
-        columns[10] = mac(columns[10], lhs.3, rhs.7);
-        columns[11] = mac(columns[11], lhs.3, rhs.8);
+        col[3] = mac(col[3], lhs.3, rhs.0);
+        col[4] = mac(col[4], lhs.3, rhs.1);
+        col[5] = mac(col[5], lhs.3, rhs.2);
+        col[6] = mac(col[6], lhs.3, rhs.3);
+        col[7] = mac(col[7], lhs.3, rhs.4);
+        col[8] = mac(col[8], lhs.3, rhs.5);
+        col[9] = mac(col[9], lhs.3, rhs.6);
+        col[10] = mac(col[10], lhs.3, rhs.7);
+        col[11] = mac(col[11], lhs.3, rhs.8);
 
         // row 4
-        columns[4] = mac(columns[4], lhs.4, rhs.0);
-        columns[5] = mac(columns[5], lhs.4, rhs.1);
-        columns[6] = mac(columns[6], lhs.4, rhs.2);
-        columns[7] = mac(columns[7], lhs.4, rhs.3);
-        columns[8] = mac(columns[8], lhs.4, rhs.4);
-        columns[9] = mac(columns[9], lhs.4, rhs.5);
-        columns[10] = mac(columns[10], lhs.4, rhs.6);
-        columns[11] = mac(columns[11], lhs.4, rhs.7);
-        columns[12] = mac(columns[12], lhs.4, rhs.8);
+        col[4] = mac(col[4], lhs.4, rhs.0);
+        col[5] = mac(col[5], lhs.4, rhs.1);
+        col[6] = mac(col[6], lhs.4, rhs.2);
+        col[7] = mac(col[7], lhs.4, rhs.3);
+        col[8] = mac(col[8], lhs.4, rhs.4);
+        col[9] = mac(col[9], lhs.4, rhs.5);
+        col[10] = mac(col[10], lhs.4, rhs.6);
+        col[11] = mac(col[11], lhs.4, rhs.7);
+        col[12] = mac(col[12], lhs.4, rhs.8);
 
         // row 5
-        columns[5] = mac(columns[5], lhs.5, rhs.0);
-        columns[6] = mac(columns[6], lhs.5, rhs.1);
-        columns[7] = mac(columns[7], lhs.5, rhs.2);
-        columns[8] = mac(columns[8], lhs.5, rhs.3);
-        columns[9] = mac(columns[9], lhs.5, rhs.4);
-        columns[10] = mac(columns[10], lhs.5, rhs.5);
-        columns[11] = mac(columns[11], lhs.5, rhs.6);
-        columns[12] = mac(columns[12], lhs.5, rhs.7);
-        columns[13] = mac(columns[13], lhs.5, rhs.8);
+        col[5] = mac(col[5], lhs.5, rhs.0);
+        col[6] = mac(col[6], lhs.5, rhs.1);
+        col[7] = mac(col[7], lhs.5, rhs.2);
+        col[8] = mac(col[8], lhs.5, rhs.3);
+        col[9] = mac(col[9], lhs.5, rhs.4);
+        col[10] = mac(col[10], lhs.5, rhs.5);
+        col[11] = mac(col[11], lhs.5, rhs.6);
+        col[12] = mac(col[12], lhs.5, rhs.7);
+        col[13] = mac(col[13], lhs.5, rhs.8);
 
         // row 6
-        columns[6] = mac(columns[6], lhs.6, rhs.0);
-        columns[7] = mac(columns[7], lhs.6, rhs.1);
-        columns[8] = mac(columns[8], lhs.6, rhs.2);
-        columns[9] = mac(columns[9], lhs.6, rhs.3);
-        columns[10] = mac(columns[10], lhs.6, rhs.4);
-        columns[11] = mac(columns[11], lhs.6, rhs.5);
-        columns[12] = mac(columns[12], lhs.6, rhs.6);
-        columns[13] = mac(columns[13], lhs.6, rhs.7);
-        columns[14] = mac(columns[14], lhs.6, rhs.8);
+        col[6] = mac(col[6], lhs.6, rhs.0);
+        col[7] = mac(col[7], lhs.6, rhs.1);
+        col[8] = mac(col[8], lhs.6, rhs.2);
+        col[9] = mac(col[9], lhs.6, rhs.3);
+        col[10] = mac(col[10], lhs.6, rhs.4);
+        col[11] = mac(col[11], lhs.6, rhs.5);
+        col[12] = mac(col[12], lhs.6, rhs.6);
+        col[13] = mac(col[13], lhs.6, rhs.7);
+        col[14] = mac(col[14], lhs.6, rhs.8);
 
         // row 7
-        columns[7] = mac(columns[7], lhs.7, rhs.0);
-        columns[8] = mac(columns[8], lhs.7, rhs.1);
-        columns[9] = mac(columns[9], lhs.7, rhs.2);
-        columns[10] = mac(columns[10], lhs.7, rhs.3);
-        columns[11] = mac(columns[11], lhs.7, rhs.4);
-        columns[12] = mac(columns[12], lhs.7, rhs.5);
-        columns[13] = mac(columns[13], lhs.7, rhs.6);
-        columns[14] = mac(columns[14], lhs.7, rhs.7);
-        columns[15] = mac(columns[15], lhs.7, rhs.8);
+        col[7] = mac(col[7], lhs.7, rhs.0);
+        col[8] = mac(col[8], lhs.7, rhs.1);
+        col[9] = mac(col[9], lhs.7, rhs.2);
+        col[10] = mac(col[10], lhs.7, rhs.3);
+        col[11] = mac(col[11], lhs.7, rhs.4);
+        col[12] = mac(col[12], lhs.7, rhs.5);
+        col[13] = mac(col[13], lhs.7, rhs.6);
+        col[14] = mac(col[14], lhs.7, rhs.7);
+        col[15] = mac(col[15], lhs.7, rhs.8);
 
         // row 8
-        columns[8] = mac(columns[8], lhs.8, rhs.0);
-        columns[9] = mac(columns[9], lhs.8, rhs.1);
-        columns[10] = mac(columns[10], lhs.8, rhs.2);
-        columns[11] = mac(columns[11], lhs.8, rhs.3);
-        columns[12] = mac(columns[12], lhs.8, rhs.4);
-        columns[13] = mac(columns[13], lhs.8, rhs.5);
-        columns[14] = mac(columns[14], lhs.8, rhs.6);
-        columns[15] = mac(columns[15], lhs.8, rhs.7);
-        columns[16] = mac(columns[16], lhs.8, rhs.8);
+        col[8] = mac(col[8], lhs.8, rhs.0);
+        col[9] = mac(col[9], lhs.8, rhs.1);
+        col[10] = mac(col[10], lhs.8, rhs.2);
+        col[11] = mac(col[11], lhs.8, rhs.3);
+        col[12] = mac(col[12], lhs.8, rhs.4);
+        col[13] = mac(col[13], lhs.8, rhs.5);
+        col[14] = mac(col[14], lhs.8, rhs.6);
+        col[15] = mac(col[15], lhs.8, rhs.7);
+        col[16] = mac(col[16], lhs.8, rhs.8);
 
-        Self::mont_reduce(columns)
+        Self::mont_reduce(col)
     }
 
     /// Performs a Montgomery reduction, ie. computes `t / R mod p` where `t` is provided as 18
@@ -373,135 +373,135 @@ impl Scalar {
     ///
     /// In row `i`, adding `m` times p zeroes the lower 29 bits of column `i`, so its carry moves up
     /// into column `i + 1` exactly.
-    const fn mont_reduce(mut columns: [u64; 2 * LIMBS]) -> Self {
+    const fn mont_reduce(mut col: [u64; 2 * LIMBS]) -> Self {
         let mut m: u32;
 
         // row 0
-        m = (columns[0] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
-        columns[0] = mac(columns[0], m, Self::P.0);
-        columns[1] = mac(columns[1], m, Self::P.1);
-        columns[2] = mac(columns[2], m, Self::P.2);
-        columns[3] = mac(columns[3], m, Self::P.3);
-        columns[4] = mac(columns[4], m, Self::P.4);
-        columns[5] = mac(columns[5], m, Self::P.5);
-        columns[6] = mac(columns[6], m, Self::P.6);
-        columns[7] = mac(columns[7], m, Self::P.7);
-        columns[8] = mac(columns[8], m, Self::P.8);
-        columns[1] += columns[0] >> LIMB_BITS;
+        m = (col[0] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        col[0] = mac(col[0], m, Self::P.0);
+        col[1] = mac(col[1], m, Self::P.1);
+        col[2] = mac(col[2], m, Self::P.2);
+        col[3] = mac(col[3], m, Self::P.3);
+        col[4] = mac(col[4], m, Self::P.4);
+        col[5] = mac(col[5], m, Self::P.5);
+        col[6] = mac(col[6], m, Self::P.6);
+        col[7] = mac(col[7], m, Self::P.7);
+        col[8] = mac(col[8], m, Self::P.8);
+        col[1] += col[0] >> LIMB_BITS;
 
         // row 1
-        m = (columns[1] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
-        columns[1] = mac(columns[1], m, Self::P.0);
-        columns[2] = mac(columns[2], m, Self::P.1);
-        columns[3] = mac(columns[3], m, Self::P.2);
-        columns[4] = mac(columns[4], m, Self::P.3);
-        columns[5] = mac(columns[5], m, Self::P.4);
-        columns[6] = mac(columns[6], m, Self::P.5);
-        columns[7] = mac(columns[7], m, Self::P.6);
-        columns[8] = mac(columns[8], m, Self::P.7);
-        columns[9] = mac(columns[9], m, Self::P.8);
-        columns[2] += columns[1] >> LIMB_BITS;
+        m = (col[1] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        col[1] = mac(col[1], m, Self::P.0);
+        col[2] = mac(col[2], m, Self::P.1);
+        col[3] = mac(col[3], m, Self::P.2);
+        col[4] = mac(col[4], m, Self::P.3);
+        col[5] = mac(col[5], m, Self::P.4);
+        col[6] = mac(col[6], m, Self::P.5);
+        col[7] = mac(col[7], m, Self::P.6);
+        col[8] = mac(col[8], m, Self::P.7);
+        col[9] = mac(col[9], m, Self::P.8);
+        col[2] += col[1] >> LIMB_BITS;
 
         // row 2
-        m = (columns[2] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
-        columns[2] = mac(columns[2], m, Self::P.0);
-        columns[3] = mac(columns[3], m, Self::P.1);
-        columns[4] = mac(columns[4], m, Self::P.2);
-        columns[5] = mac(columns[5], m, Self::P.3);
-        columns[6] = mac(columns[6], m, Self::P.4);
-        columns[7] = mac(columns[7], m, Self::P.5);
-        columns[8] = mac(columns[8], m, Self::P.6);
-        columns[9] = mac(columns[9], m, Self::P.7);
-        columns[10] = mac(columns[10], m, Self::P.8);
-        columns[3] += columns[2] >> LIMB_BITS;
+        m = (col[2] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        col[2] = mac(col[2], m, Self::P.0);
+        col[3] = mac(col[3], m, Self::P.1);
+        col[4] = mac(col[4], m, Self::P.2);
+        col[5] = mac(col[5], m, Self::P.3);
+        col[6] = mac(col[6], m, Self::P.4);
+        col[7] = mac(col[7], m, Self::P.5);
+        col[8] = mac(col[8], m, Self::P.6);
+        col[9] = mac(col[9], m, Self::P.7);
+        col[10] = mac(col[10], m, Self::P.8);
+        col[3] += col[2] >> LIMB_BITS;
 
         // row 3
-        m = (columns[3] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
-        columns[3] = mac(columns[3], m, Self::P.0);
-        columns[4] = mac(columns[4], m, Self::P.1);
-        columns[5] = mac(columns[5], m, Self::P.2);
-        columns[6] = mac(columns[6], m, Self::P.3);
-        columns[7] = mac(columns[7], m, Self::P.4);
-        columns[8] = mac(columns[8], m, Self::P.5);
-        columns[9] = mac(columns[9], m, Self::P.6);
-        columns[10] = mac(columns[10], m, Self::P.7);
-        columns[11] = mac(columns[11], m, Self::P.8);
-        columns[4] += columns[3] >> LIMB_BITS;
+        m = (col[3] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        col[3] = mac(col[3], m, Self::P.0);
+        col[4] = mac(col[4], m, Self::P.1);
+        col[5] = mac(col[5], m, Self::P.2);
+        col[6] = mac(col[6], m, Self::P.3);
+        col[7] = mac(col[7], m, Self::P.4);
+        col[8] = mac(col[8], m, Self::P.5);
+        col[9] = mac(col[9], m, Self::P.6);
+        col[10] = mac(col[10], m, Self::P.7);
+        col[11] = mac(col[11], m, Self::P.8);
+        col[4] += col[3] >> LIMB_BITS;
 
         // row 4
-        m = (columns[4] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
-        columns[4] = mac(columns[4], m, Self::P.0);
-        columns[5] = mac(columns[5], m, Self::P.1);
-        columns[6] = mac(columns[6], m, Self::P.2);
-        columns[7] = mac(columns[7], m, Self::P.3);
-        columns[8] = mac(columns[8], m, Self::P.4);
-        columns[9] = mac(columns[9], m, Self::P.5);
-        columns[10] = mac(columns[10], m, Self::P.6);
-        columns[11] = mac(columns[11], m, Self::P.7);
-        columns[12] = mac(columns[12], m, Self::P.8);
-        columns[5] += columns[4] >> LIMB_BITS;
+        m = (col[4] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        col[4] = mac(col[4], m, Self::P.0);
+        col[5] = mac(col[5], m, Self::P.1);
+        col[6] = mac(col[6], m, Self::P.2);
+        col[7] = mac(col[7], m, Self::P.3);
+        col[8] = mac(col[8], m, Self::P.4);
+        col[9] = mac(col[9], m, Self::P.5);
+        col[10] = mac(col[10], m, Self::P.6);
+        col[11] = mac(col[11], m, Self::P.7);
+        col[12] = mac(col[12], m, Self::P.8);
+        col[5] += col[4] >> LIMB_BITS;
 
         // row 5
-        m = (columns[5] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
-        columns[5] = mac(columns[5], m, Self::P.0);
-        columns[6] = mac(columns[6], m, Self::P.1);
-        columns[7] = mac(columns[7], m, Self::P.2);
-        columns[8] = mac(columns[8], m, Self::P.3);
-        columns[9] = mac(columns[9], m, Self::P.4);
-        columns[10] = mac(columns[10], m, Self::P.5);
-        columns[11] = mac(columns[11], m, Self::P.6);
-        columns[12] = mac(columns[12], m, Self::P.7);
-        columns[13] = mac(columns[13], m, Self::P.8);
-        columns[6] += columns[5] >> LIMB_BITS;
+        m = (col[5] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        col[5] = mac(col[5], m, Self::P.0);
+        col[6] = mac(col[6], m, Self::P.1);
+        col[7] = mac(col[7], m, Self::P.2);
+        col[8] = mac(col[8], m, Self::P.3);
+        col[9] = mac(col[9], m, Self::P.4);
+        col[10] = mac(col[10], m, Self::P.5);
+        col[11] = mac(col[11], m, Self::P.6);
+        col[12] = mac(col[12], m, Self::P.7);
+        col[13] = mac(col[13], m, Self::P.8);
+        col[6] += col[5] >> LIMB_BITS;
 
         // row 6
-        m = (columns[6] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
-        columns[6] = mac(columns[6], m, Self::P.0);
-        columns[7] = mac(columns[7], m, Self::P.1);
-        columns[8] = mac(columns[8], m, Self::P.2);
-        columns[9] = mac(columns[9], m, Self::P.3);
-        columns[10] = mac(columns[10], m, Self::P.4);
-        columns[11] = mac(columns[11], m, Self::P.5);
-        columns[12] = mac(columns[12], m, Self::P.6);
-        columns[13] = mac(columns[13], m, Self::P.7);
-        columns[14] = mac(columns[14], m, Self::P.8);
-        columns[7] += columns[6] >> LIMB_BITS;
+        m = (col[6] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        col[6] = mac(col[6], m, Self::P.0);
+        col[7] = mac(col[7], m, Self::P.1);
+        col[8] = mac(col[8], m, Self::P.2);
+        col[9] = mac(col[9], m, Self::P.3);
+        col[10] = mac(col[10], m, Self::P.4);
+        col[11] = mac(col[11], m, Self::P.5);
+        col[12] = mac(col[12], m, Self::P.6);
+        col[13] = mac(col[13], m, Self::P.7);
+        col[14] = mac(col[14], m, Self::P.8);
+        col[7] += col[6] >> LIMB_BITS;
 
         // row 7
-        m = (columns[7] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
-        columns[7] = mac(columns[7], m, Self::P.0);
-        columns[8] = mac(columns[8], m, Self::P.1);
-        columns[9] = mac(columns[9], m, Self::P.2);
-        columns[10] = mac(columns[10], m, Self::P.3);
-        columns[11] = mac(columns[11], m, Self::P.4);
-        columns[12] = mac(columns[12], m, Self::P.5);
-        columns[13] = mac(columns[13], m, Self::P.6);
-        columns[14] = mac(columns[14], m, Self::P.7);
-        columns[15] = mac(columns[15], m, Self::P.8);
-        columns[8] += columns[7] >> LIMB_BITS;
+        m = (col[7] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        col[7] = mac(col[7], m, Self::P.0);
+        col[8] = mac(col[8], m, Self::P.1);
+        col[9] = mac(col[9], m, Self::P.2);
+        col[10] = mac(col[10], m, Self::P.3);
+        col[11] = mac(col[11], m, Self::P.4);
+        col[12] = mac(col[12], m, Self::P.5);
+        col[13] = mac(col[13], m, Self::P.6);
+        col[14] = mac(col[14], m, Self::P.7);
+        col[15] = mac(col[15], m, Self::P.8);
+        col[8] += col[7] >> LIMB_BITS;
 
         // row 8
-        m = (columns[8] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
-        columns[8] = mac(columns[8], m, Self::P.0);
-        columns[9] = mac(columns[9], m, Self::P.1);
-        columns[10] = mac(columns[10], m, Self::P.2);
-        columns[11] = mac(columns[11], m, Self::P.3);
-        columns[12] = mac(columns[12], m, Self::P.4);
-        columns[13] = mac(columns[13], m, Self::P.5);
-        columns[14] = mac(columns[14], m, Self::P.6);
-        columns[15] = mac(columns[15], m, Self::P.7);
-        columns[16] = mac(columns[16], m, Self::P.8);
-        columns[9] += columns[8] >> LIMB_BITS;
+        m = (col[8] as u32).wrapping_mul(Self::P_INV) & LIMB_MASK;
+        col[8] = mac(col[8], m, Self::P.0);
+        col[9] = mac(col[9], m, Self::P.1);
+        col[10] = mac(col[10], m, Self::P.2);
+        col[11] = mac(col[11], m, Self::P.3);
+        col[12] = mac(col[12], m, Self::P.4);
+        col[13] = mac(col[13], m, Self::P.5);
+        col[14] = mac(col[14], m, Self::P.6);
+        col[15] = mac(col[15], m, Self::P.7);
+        col[16] = mac(col[16], m, Self::P.8);
+        col[9] += col[8] >> LIMB_BITS;
 
-        let (limb0, carry) = split(columns[9]);
-        let (limb1, carry) = split(columns[10] + carry);
-        let (limb2, carry) = split(columns[11] + carry);
-        let (limb3, carry) = split(columns[12] + carry);
-        let (limb4, carry) = split(columns[13] + carry);
-        let (limb5, carry) = split(columns[14] + carry);
-        let (limb6, carry) = split(columns[15] + carry);
-        let (limb7, carry) = split(columns[16] + carry);
-        let (limb8, _) = split(columns[17] + carry);
+        let (limb0, carry) = split(col[9]);
+        let (limb1, carry) = split(col[10] + carry);
+        let (limb2, carry) = split(col[11] + carry);
+        let (limb3, carry) = split(col[12] + carry);
+        let (limb4, carry) = split(col[13] + carry);
+        let (limb5, carry) = split(col[14] + carry);
+        let (limb6, carry) = split(col[15] + carry);
+        let (limb7, carry) = split(col[16] + carry);
+        let (limb8, _) = split(col[17] + carry);
         Self(
             limb0, limb1, limb2, limb3, limb4, limb5, limb6, limb7, limb8,
         )

@@ -7,7 +7,7 @@
 //! flag, such as WebAssembly.
 //!
 //! Additions and subtractions involve no products, so they can process the limbs in 58-bit pairs
-//! (see [`join_pair`]) to halve the length of their carry chains.
+//! (see [`join`]) to halve the length of their carry chains.
 
 /// The number of bits in a limb.
 pub const LIMB_BITS: u32 = 29;
@@ -23,8 +23,15 @@ pub const PAIR_BITS: u32 = 2 * LIMB_BITS;
 
 /// Joins two limbs into a 58-bit pair.
 #[inline(always)]
-pub const fn join_pair(low: u32, high: u32) -> u64 {
+pub const fn join(low: u32, high: u32) -> u64 {
     low as u64 | (high as u64) << LIMB_BITS
+}
+
+/// Splits an accumulator into the (limb, carry) pair, where the limb is made of the lower
+/// `LIMB_BITS` bits and the carry of the remaining ones.
+#[inline(always)]
+pub const fn split(value: u64) -> (u32, u64) {
+    (value as u32 & LIMB_MASK, value >> LIMB_BITS)
 }
 
 /// Returns the lower limb of a pair, ie. its bits from 0 to 28.
@@ -45,24 +52,27 @@ pub const fn mac(a: u64, b: u32, c: u32) -> u64 {
     a + (b as u64) * (c as u64)
 }
 
-/// Splits an accumulator into the (limb, carry) pair, where the limb is made of the lower
-/// `LIMB_BITS` bits and the carry of the remaining ones.
-#[inline(always)]
-pub const fn split(value: u64) -> (u32, u64) {
-    (value as u32 & LIMB_MASK, value >> LIMB_BITS)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_join_pair() {
-        assert_eq!(join_pair(0, 0), 0);
-        assert_eq!(join_pair(1, 0), 1);
-        assert_eq!(join_pair(0, 1), 0x20000000);
-        assert_eq!(join_pair(0x12345678, 0x1abcdef0), 0x03579bde12345678);
-        assert_eq!(join_pair(LIMB_MASK, LIMB_MASK), 0x03ffffffffffffff);
+    fn test_join() {
+        assert_eq!(join(0, 0), 0);
+        assert_eq!(join(1, 0), 1);
+        assert_eq!(join(0, 1), 0x20000000);
+        assert_eq!(join(0x12345678, 0x1abcdef0), 0x03579bde12345678);
+        assert_eq!(join(LIMB_MASK, LIMB_MASK), 0x03ffffffffffffff);
+    }
+
+    #[test]
+    fn test_split() {
+        assert_eq!(split(0), (0, 0));
+        assert_eq!(split(1), (1, 0));
+        assert_eq!(split(0x1fffffff), (LIMB_MASK, 0));
+        assert_eq!(split(0x20000000), (0, 1));
+        assert_eq!(split(0x20000005), (5, 1));
+        assert_eq!(split(0xfffffff000000040), (0x40, 0x7ffffff80));
     }
 
     #[test]
@@ -99,15 +109,5 @@ mod tests {
             mac(0xfbfffff04000003f, LIMB_MASK, LIMB_MASK),
             0xfffffff000000040
         );
-    }
-
-    #[test]
-    fn test_split() {
-        assert_eq!(split(0), (0, 0));
-        assert_eq!(split(1), (1, 0));
-        assert_eq!(split(0x1fffffff), (LIMB_MASK, 0));
-        assert_eq!(split(0x20000000), (0, 1));
-        assert_eq!(split(0x20000005), (5, 1));
-        assert_eq!(split(0xfffffff000000040), (0x40, 0x7ffffff80));
     }
 }
